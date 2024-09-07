@@ -158,15 +158,16 @@ struct row {
     struct cell *cells;
     struct row_data *extra;
 
+    struct {
+        int cmd_start;  /* Column, -1 if unset */
+        int cmd_end;    /* Column, -1 if unset */
+        bool prompt_marker;
+    } __attribute__((packed)) shell_integration;
+
     bool dirty;
     bool linebreak;
 
-    struct {
-        bool prompt_marker;
-        int cmd_start;  /* Column, -1 if unset */
-        int cmd_end;    /* Column, -1 if unset */
-    } shell_integration;
-};
+} __attribute__((packed));
 
 struct sixel {
     /*
