@@ -159,8 +159,8 @@ struct row {
     struct row_data *extra;
 
     struct {
-        int cmd_start;  /* Column, -1 if unset */
-        int cmd_end;    /* Column, -1 if unset */
+        int16_t cmd_start;  /* Column, -1 if unset */
+        int16_t cmd_end;    /* Column, -1 if unset */
         bool prompt_marker;
     } __attribute__((packed)) shell_integration;
 
