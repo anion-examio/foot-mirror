@@ -167,7 +167,7 @@ struct row {
     bool dirty;
     bool linebreak;
 
-} __attribute__((packed));
+};
 
 struct sixel {
     /*
