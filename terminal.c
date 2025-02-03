@@ -1978,7 +1978,11 @@ term_destroy(struct terminal *term)
             LOG_DBG("slave exited with code %d", ret);
         } else if (WIFSIGNALED(exit_status)) {
             ret = WTERMSIG(exit_status);
-            LOG_WARN("slave exited with signal %d (%s)", ret, strsignal(ret));
+            if (ret == SIGHUP) {
+                LOG_DBG("slave exited with signal %d (%s)", ret, strsignal(ret));
+                ret = 0;
+            } else
+                LOG_WARN("slave exited with signal %d (%s)", ret, strsignal(ret));
         } else {
             LOG_WARN("slave exited for unknown reason (status = 0x%08x)",
                      exit_status);

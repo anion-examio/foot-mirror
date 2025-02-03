@@ -72,6 +72,9 @@
 * Do not try to set a zero width, or height, if the compositor sends a
   _configure_ event with only one dimension being zero
   ([#1925][1925]).
+* Exit with value `0` when the client process exits due to us sending
+  it `SIGHUP`. This happens for example when closing the window with
+  either a compositor shortcut, or clicking the CSD _close_ button.
 
 [1925]: https://codeberg.org/dnkl/foot/issues/1925
 
