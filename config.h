@@ -200,6 +200,7 @@ enum shm_bit_depth {
     SHM_BITS_8,
     SHM_BITS_10,
     SHM_BITS_16,
+    SHM_BITS_16F,
 };
 
 struct config {
