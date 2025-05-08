@@ -1441,7 +1441,7 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
             },
             .bgid = 0x1234,
             .bsize = 24 * 1024,
-            .bcount = 128,
+            .bcount = 16,
             },
         #endif
         .font_sizes = {
