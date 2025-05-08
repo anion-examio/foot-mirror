@@ -1567,19 +1567,6 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .active_notifications = tll_init(),
     };
 
-#if defined(FOOT_IO_URING)
-    {
-        int io_ret = io_uring_queue_init(2, &term->uring.ring, 0);
-        if (io_ret < 0) {
-            LOG_ERRNO_P(-io_ret, "failed to initialize io_uring queue");
-            goto close_fds;
-        }
-
-        xassert(term->uring.ring.ring_fd >= 0);
-        xassert(term->uring.ring.enter_ring_fd >= 0);
-    }
-#endif
-
     pixman_region32_init(&term->render.last_overlay_clip);
 
     term_update_ascii_printer(term);
@@ -1680,7 +1667,15 @@ term_window_configured(struct terminal *term)
 
 #if defined(FOOT_IO_URING)
         {
-            int ret;
+            int ret = io_uring_queue_init(2, &term->uring.ring, 0);
+            if (ret < 0) {
+                LOG_ERRNO_P(-ret, "failed to initialize io_uring queue");
+                BUG("cannot yet handle failure to initialize io_uring");
+            }
+
+            xassert(term->uring.ring.ring_fd >= 0);
+            xassert(term->uring.ring.enter_ring_fd >= 0);
+
             term->uring.bring = io_uring_setup_buf_ring(
                 &term->uring.ring, term->uring.bcount, term->uring.bgid, 0, &ret);
 
@@ -1702,9 +1697,10 @@ term_window_configured(struct terminal *term)
             struct io_uring_sqe *sqe = io_uring_get_sqe(&term->uring.ring);
             io_uring_prep_read_multishot(sqe, term->ptmx, 0, -1, term->uring.bgid);
             io_uring_submit(&term->uring.ring);
+
+            fdm_add(term->fdm, term->uring.ring.ring_fd, EPOLLIN, &fdm_ptmx_eventfd, term);
         }
 
-        fdm_add(term->fdm, term->uring.ring.ring_fd, EPOLLIN, &fdm_ptmx_eventfd, term);
 
         /* We still need this, for EPOLLOUT (and maybe HUP?) */
         fdm_add(term->fdm, term->ptmx, 0, &fdm_ptmx, term);
