@@ -28,4 +28,4 @@ option('utmp-backend', type: 'combo', value: 'auto', choices: ['none', 'libutemp
 option('utmp-default-helper-path', type: 'string', value: 'auto',
        description: 'Default path to the utmp helper binary. Default: auto-detect')
 
-option('io-uring', type: 'feature', value: 'enabled', description: 'Build with io-uring support')
+option('io-uring', type: 'feature', description: 'Build with io-uring support')
