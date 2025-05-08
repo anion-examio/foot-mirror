@@ -48,6 +48,12 @@ fdm_del(struct fdm *fdm, int fd)
 }
 
 bool
+fdm_del_no_close(struct fdm *fdm, int fd)
+{
+    return true;
+}
+
+bool
 fdm_event_add(struct fdm *fdm, int fd, int events)
 {
     return true;
