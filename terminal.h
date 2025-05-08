@@ -435,8 +435,12 @@ struct terminal {
 #if defined(FOOT_IO_URING)
     struct {
         struct io_uring ring;
-        struct io_uring_buf_ring *buf_ring;
+        struct io_uring_buf_ring *bring;
+
         uint8_t **buffers;
+        int bgid;
+        unsigned int bsize;
+        unsigned int bcount;
     } uring;
 #endif
 

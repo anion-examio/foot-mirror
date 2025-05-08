@@ -261,7 +261,7 @@ fdm_ptmx_eventfd(struct fdm *fdm, int fd, int events, void *data)
     }
 
     //const size_t max_iterations = !hup ? 10 : SIZE_MAX;
-    const size_t max_iterations = 100;
+    const size_t max_iterations = 10;
 
     for (size_t i = 0; i < max_iterations; i++) {
         struct io_uring_cqe *cqe;
@@ -278,7 +278,7 @@ fdm_ptmx_eventfd(struct fdm *fdm, int fd, int events, void *data)
         if (!(cqe->flags & IORING_CQE_F_MORE)) {
             if (cqe->res >= 0 || -cqe->res == ENOBUFS) {
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&term->uring.ring);
-                io_uring_prep_read_multishot(sqe, term->ptmx, 0, -1, 123);
+                io_uring_prep_read_multishot(sqe, term->ptmx, 0, -1, term->uring.bgid);
                 io_uring_submit(&term->uring.ring);
             }
         }
@@ -307,8 +307,11 @@ fdm_ptmx_eventfd(struct fdm *fdm, int fd, int events, void *data)
         xassert(term->interactive_resizing.grid == NULL);
         vt_from_slave(term, buf, count);
 
-        io_uring_buf_ring_add(term->uring.buf_ring, (void *)buf, 24 * 1024, buffer_id, io_uring_buf_ring_mask(128), 0);
-        io_uring_buf_ring_cq_advance(&term->uring.ring, term->uring.buf_ring, 1);
+        io_uring_buf_ring_add(
+            term->uring.bring, (void *)buf, term->uring.bsize,
+            buffer_id, io_uring_buf_ring_mask(term->uring.bcount), 0);
+
+        io_uring_buf_ring_cq_advance(&term->uring.ring, term->uring.bring, 1);
     }
 
     if (!term->render.app_sync_updates.enabled) {
@@ -1428,6 +1431,17 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .ptmx = ptmx,
         .ptmx_buffers = tll_init(),
         .ptmx_paste_buffers = tll_init(),
+        #if defined(FOOT_IO_URING)
+        .uring = {
+            .ring = {
+                .ring_fd = -1,
+                .enter_ring_fd = -1,
+            },
+            .bgid = 0x1234,
+            .bsize = 24 * 1024,
+            .bcount = 128,
+            },
+        #endif
         .font_sizes = {
             xmalloc(sizeof(term->font_sizes[0][0]) * conf->fonts[0].count),
             xmalloc(sizeof(term->font_sizes[1][0]) * conf->fonts[1].count),
@@ -1560,6 +1574,9 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
             LOG_ERRNO_P(-io_ret, "failed to initialize io_uring queue");
             goto close_fds;
         }
+
+        xassert(term->uring.ring.ring_fd >= 0);
+        xassert(term->uring.ring.enter_ring_fd >= 0);
     }
 #endif
 
@@ -1663,32 +1680,33 @@ term_window_configured(struct terminal *term)
 
 #if defined(FOOT_IO_URING)
         {
-            const unsigned short bid = 123;
-            const size_t total_size = 3 * 1024 * 1024;
-            const size_t buf_size = 24 * 1024;
-            const size_t buf_count = total_size / buf_size;
-            xassert(buf_count * buf_size == total_size);
-
             int ret;
-            term->uring.buf_ring = io_uring_setup_buf_ring(
-                &term->uring.ring, buf_count, bid, 0, &ret);
+            term->uring.bring = io_uring_setup_buf_ring(
+                &term->uring.ring, term->uring.bcount, term->uring.bgid, 0, &ret);
 
-            term->uring.buffers = xmalloc(buf_count * sizeof(term->uring.buffers[0]));
-            for (unsigned short id = 0; id < buf_count; id++) {
-                void *buffer = xmalloc(buf_size);
+            term->uring.buffers = xmalloc(
+                term->uring.bcount * sizeof(term->uring.buffers[0]));
+
+            for (unsigned short id = 0; id < term->uring.bcount; id++) {
+                void *buffer = xmalloc(term->uring.bsize);
+
                 io_uring_buf_ring_add(
-                    term->uring.buf_ring, buffer, buf_size, id,
-                    io_uring_buf_ring_mask(buf_count), id);
+                    term->uring.bring, buffer, term->uring.bsize, id,
+                    io_uring_buf_ring_mask(term->uring.bcount), id);
+
                 term->uring.buffers[id] = buffer;
             }
-            io_uring_buf_ring_advance(term->uring.buf_ring, buf_count);
+
+            io_uring_buf_ring_advance(term->uring.bring, term->uring.bcount);
 
             struct io_uring_sqe *sqe = io_uring_get_sqe(&term->uring.ring);
-            io_uring_prep_read_multishot(sqe, term->ptmx, 0, -1, bid);
+            io_uring_prep_read_multishot(sqe, term->ptmx, 0, -1, term->uring.bgid);
             io_uring_submit(&term->uring.ring);
         }
 
-        fdm_add(term->fdm, term->uring.ring.enter_ring_fd, EPOLLIN, &fdm_ptmx_eventfd, term);
+        fdm_add(term->fdm, term->uring.ring.ring_fd, EPOLLIN, &fdm_ptmx_eventfd, term);
+
+        /* We still need this, for EPOLLOUT (and maybe HUP?) */
         fdm_add(term->fdm, term->ptmx, 0, &fdm_ptmx, term);
 #else
         fdm_add(term->fdm, term->ptmx, EPOLLIN, &fdm_ptmx, term);
@@ -1884,6 +1902,54 @@ fdm_terminate_timeout(struct fdm *fdm, int fd, int events, void *data)
     return true;
 }
 
+static void
+uring_shutdown(struct terminal *term)
+{
+#if defined(FOOT_IO_URING)
+    if (term->uring.ring.ring_fd < 0)
+        return;
+
+    if (term->window != NULL && term->window->is_configured)
+        fdm_del_no_close(term->fdm, term->uring.ring.ring_fd);
+
+    /* Cancel all pending io-uring requests */
+    struct io_uring_sqe *sqe = io_uring_get_sqe(&term->uring.ring);
+    io_uring_prep_cancel(sqe, NULL, IORING_ASYNC_CANCEL_ALL | IORING_ASYNC_CANCEL_ANY);
+    io_uring_submit(&term->uring.ring);
+
+    while (true) {
+        struct io_uring_cqe *cqe;
+        int ret = io_uring_peek_cqe(&term->uring.ring, &cqe);
+
+        if (ret < 0) {
+            if (-ret != EAGAIN)
+                LOG_ERRNO_P(-ret, "failed to pull CQE from io-uring");
+            break;
+        }
+
+        io_uring_cqe_seen(&term->uring.ring, cqe);
+    }
+
+    if (term->uring.bring != NULL) {
+        io_uring_free_buf_ring(&term->uring.ring, term->uring.bring,
+                               term->uring.bcount, term->uring.bgid);
+    }
+
+    /* Shutdown io-uring */
+    io_uring_queue_exit(&term->uring.ring);
+
+    /* Free io-uring buffers */
+    if (term->uring.buffers != NULL) {
+        for (size_t i = 0; i < term->uring.bcount; i++)
+            free(term->uring.buffers[i]);
+        free(term->uring.buffers);
+    }
+
+    term->uring.ring.ring_fd = -1;
+    term->uring.ring.enter_ring_fd = -1;
+#endif
+}
+
 bool
 term_shutdown(struct terminal *term)
 {
@@ -1900,6 +1966,7 @@ term_shutdown(struct terminal *term)
     term_cursor_blink_update(term);
     xassert(term->cursor_blink.fd < 0);
 
+    uring_shutdown(term);
     fdm_del(term->fdm, term->selection.auto_scroll.fd);
     fdm_del(term->fdm, term->render.app_sync_updates.timer_fd);
     fdm_del(term->fdm, term->render.app_id.timer_fd);
@@ -1912,10 +1979,9 @@ term_shutdown(struct terminal *term)
 
     del_utmp_record(term->conf, term->reaper, term->ptmx);
 
-    if (term->window != NULL && term->window->is_configured) {
+    if (term->window != NULL && term->window->is_configured)
         fdm_del(term->fdm, term->ptmx);
-        //fdm_del(term->fdm, term->io_uring.enter_ring_fd);
-    } else
+    else
         close(term->ptmx);
 
     if (!term->shutdown.client_has_terminated) {
@@ -2008,6 +2074,7 @@ term_destroy(struct terminal *term)
 
     del_utmp_record(term->conf, term->reaper, term->ptmx);
 
+    uring_shutdown(term);
     fdm_del(term->fdm, term->selection.auto_scroll.fd);
     fdm_del(term->fdm, term->render.app_sync_updates.timer_fd);
     fdm_del(term->fdm, term->render.app_id.timer_fd);
@@ -2018,41 +2085,13 @@ term_destroy(struct terminal *term)
     fdm_del(term->fdm, term->cursor_blink.fd);
     fdm_del(term->fdm, term->blink.fd);
     fdm_del(term->fdm, term->flash.fd);
-    fdm_del(term->fdm, term->ptmx);
+    if (term->window != NULL && term->window->is_configured) {
+        fdm_del(term->fdm, term->ptmx);
+    } else if (term->ptmx >= 0)
+        close(term->ptmx);
+
     if (term->shutdown.terminate_timeout_fd >= 0)
         fdm_del(term->fdm, term->shutdown.terminate_timeout_fd);
-
-#if defined(FOOT_IO_URING)
-    fdm_del(term->fdm, term->uring.ring.enter_ring_fd);
-
-    {
-        /* Cancel all pending io-uring requests */
-        struct io_uring_sqe *sqe = io_uring_get_sqe(&term->uring.ring);
-        io_uring_prep_cancel(sqe, NULL, IORING_ASYNC_CANCEL_ALL | IORING_ASYNC_CANCEL_ANY);
-        io_uring_submit(&term->uring.ring);
-
-        while (true) {
-            struct io_uring_cqe *cqe;
-            int ret = io_uring_peek_cqe(&term->uring.ring, &cqe);
-
-            if (ret < 0) {
-                if (-ret != EAGAIN)
-                    LOG_ERRNO_P(-ret, "failed to pull CQE from io-uring");
-                break;
-            }
-
-            io_uring_cqe_seen(&term->uring.ring, cqe);
-        }
-
-        /* Shutdown io-uring */
-        io_uring_queue_exit(&term->uring.ring);
-
-        /* Free io-uring buffers */
-        for (size_t i = 0; i < 128; i++)
-            free(term->uring.buffers[i]);
-        free(term->uring.buffers);
-    }
-#endif
 
     if (term->window != NULL) {
         wayl_win_destroy(term->window);
