@@ -1911,6 +1911,8 @@ uring_shutdown(struct terminal *term)
     if (term->uring.ring.ring_fd < 0)
         return;
 
+    xassert(term->uring.ring.cq.koverflow == 0);
+
     if (term->window != NULL && term->window->is_configured)
         fdm_del_no_close(term->fdm, term->uring.ring.ring_fd);
 
