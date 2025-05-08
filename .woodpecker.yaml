@@ -45,6 +45,7 @@ steps:
       - apk add git
       - apk add check-dev
       - apk add ttf-hack font-noto-emoji
+      - apk add liburing-dev
 
       # Debug
       - mkdir -p bld/debug-x64
@@ -102,6 +103,7 @@ steps:
       - apk add git
       - apk add check-dev
       - apk add ttf-hack font-noto-emoji
+      - apk add liburing-dev
 
       # Debug
       - mkdir -p bld/debug-x86
