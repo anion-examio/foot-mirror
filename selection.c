@@ -1855,7 +1855,7 @@ send_clipboard_or_primary(struct seat *seat, int fd, const char *selection,
 }
 
 static void
-send(void *data, struct wl_data_source *wl_data_source, const char *mime_type,
+selection_send(void *data, struct wl_data_source *wl_data_source, const char *mime_type,
      int32_t fd)
 {
     struct seat *seat = data;
@@ -1900,7 +1900,7 @@ action(void *data, struct wl_data_source *wl_data_source, uint32_t dnd_action)
 
 static const struct wl_data_source_listener data_source_listener = {
     .target = &target,
-    .send = &send,
+    .send = &selection_send,
     .cancelled = &cancelled,
     .dnd_drop_performed = &dnd_drop_performed,
     .dnd_finished = &dnd_finished,

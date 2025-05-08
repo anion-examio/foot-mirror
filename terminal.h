@@ -11,6 +11,10 @@
  #include <utf8proc.h>
 #endif
 
+#if defined(FOOT_IO_URING)
+ #include <liburing.h>
+#endif
+
 #include <tllist.h>
 #include <fcft/fcft.h>
 
@@ -427,6 +431,14 @@ struct terminal {
 
     pid_t slave;
     int ptmx;
+
+#if defined(FOOT_IO_URING)
+    struct {
+        struct io_uring ring;
+        struct io_uring_buf_ring *buf_ring;
+        uint8_t **buffers;
+    } uring;
+#endif
 
     struct vt vt;
     struct grid *grid;

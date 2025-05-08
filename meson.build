@@ -140,6 +140,7 @@ wayland_cursor = dependency('wayland-cursor')
 xkb = dependency('xkbcommon', version: '>=1.8.0')
 fontconfig = dependency('fontconfig')
 utf8proc = dependency('libutf8proc', required: get_option('grapheme-clustering'))
+io_uring = dependency('liburing', required: get_option('io-uring'))
 
 if utf8proc.found()
   add_project_arguments('-DFOOT_GRAPHEME_CLUSTERING=1', language: 'c')
@@ -147,6 +148,10 @@ endif
 
 if pixman.version().version_compare('>=0.46.0')
   add_project_arguments('-DHAVE_PIXMAN_RGBA_16', language: 'c')
+endif
+
+if io_uring.found()
+  add_project_arguments('-DFOOT_IO_URING=1', language: 'c')
 endif
 
 tllist = dependency('tllist', version: '>=1.1.0', fallback: 'tllist')
@@ -260,7 +265,7 @@ vtlib = static_library(
   builtin_terminfo, srgb_funcs,
   wl_proto_src + wl_proto_headers,
   version,
-  dependencies: [libepoll, pixman, fcft, tllist, wayland_client, xkb, utf8proc],
+  dependencies: [libepoll, pixman, fcft, tllist, wayland_client, xkb, utf8proc, io_uring],
   link_with: [common, misc],
 )
 
@@ -271,7 +276,7 @@ pgolib = static_library(
   'terminal.c', 'terminal.h',
   emoji_variation_sequences,
   wl_proto_src + wl_proto_headers,
-  dependencies: [libepoll, pixman, fcft, tllist, wayland_client, xkb, utf8proc],
+  dependencies: [libepoll, pixman, fcft, tllist, wayland_client, xkb, utf8proc, io_uring],
   link_with: vtlib,
 )
 
@@ -287,7 +292,7 @@ if get_option('b_pgo') == 'generate'
     'pgo',
     'pgo/pgo.c',
     wl_proto_src + wl_proto_headers,
-    dependencies: [math, threads, libepoll, pixman, wayland_client, xkb, utf8proc, fcft, tllist],
+    dependencies: [math, threads, libepoll, pixman, wayland_client, xkb, utf8proc, fcft, tllist, io_uring],
     link_with: pgolib,
   )
 endif
@@ -320,8 +325,7 @@ executable(
   'user-notification.c', 'user-notification.h',
   'wayland.c', 'wayland.h', 'shm-formats.h',
   srgb_funcs, wl_proto_src + wl_proto_headers, version,
-  dependencies: [math, threads, libepoll, pixman, wayland_client, wayland_cursor, xkb, fontconfig, utf8proc,
-                 tllist, fcft],
+  dependencies: [math, threads, libepoll, pixman, wayland_client, wayland_cursor, xkb, fontconfig, utf8proc, io_uring, tllist, fcft],
   link_with: pgolib,
   install: true)
 
@@ -422,6 +426,7 @@ summary(
     'Grapheme clustering': utf8proc.found(),
     'utmp backend': utmp_backend,
     'utmp helper default path': utmp_default_helper_path,
+    'io-uring': io_uring.found(),
     'Build terminfo': tic.found(),
     'Terminfo base name': terminfo_base_name,
     'Terminfo install location': terminfo_install_location,
