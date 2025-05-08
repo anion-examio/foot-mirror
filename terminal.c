@@ -303,6 +303,7 @@ fdm_ptmx_eventfd(struct fdm *fdm, int fd, int events, void *data)
         const int buffer_id = cqe->flags >> IORING_CQE_BUFFER_SHIFT;
         const ssize_t count = cqe->res;
         const uint8_t *buf = term->uring.buffers[buffer_id];
+        io_uring_cqe_seen(&term->uring.ring, cqe);
 
         xassert(term->interactive_resizing.grid == NULL);
         vt_from_slave(term, buf, count);
@@ -311,7 +312,8 @@ fdm_ptmx_eventfd(struct fdm *fdm, int fd, int events, void *data)
             term->uring.bring, (void *)buf, term->uring.bsize,
             buffer_id, io_uring_buf_ring_mask(term->uring.bcount), 0);
 
-        io_uring_buf_ring_cq_advance(&term->uring.ring, term->uring.bring, 1);
+        //io_uring_buf_ring_cq_advance(&term->uring.ring, term->uring.bring, 1);
+        io_uring_buf_ring_advance(term->uring.bring, 1);
     }
 
     if (!term->render.app_sync_updates.enabled) {
@@ -1667,7 +1669,11 @@ term_window_configured(struct terminal *term)
 
 #if defined(FOOT_IO_URING)
         {
-            int ret = io_uring_queue_init(2, &term->uring.ring, 0);
+            struct io_uring_params params = {
+                .cq_entries = term->uring.bcount + 16,
+            };
+            //int ret = io_uring_queue_init(2, &term->uring.ring, 0);
+            int ret = io_uring_queue_init_params(2, &term->uring.ring, &params);
             if (ret < 0) {
                 LOG_ERRNO_P(-ret, "failed to initialize io_uring queue");
                 BUG("cannot yet handle failure to initialize io_uring");
