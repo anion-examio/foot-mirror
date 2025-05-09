@@ -1670,15 +1670,18 @@ term_window_configured(struct terminal *term)
 #if defined(FOOT_IO_URING)
         {
             struct io_uring_params params = {
-                .cq_entries = term->uring.bcount + 16,
+                .flags = IORING_SETUP_CQSIZE | IORING_SETUP_COOP_TASKRUN | IORING_SETUP_TASKRUN_FLAG | IORING_SETUP_NO_SQARRAY,
+                .cq_entries = term->uring.bcount * 2,
             };
-            //int ret = io_uring_queue_init(2, &term->uring.ring, 0);
+
             int ret = io_uring_queue_init_params(2, &term->uring.ring, &params);
             if (ret < 0) {
                 LOG_ERRNO_P(-ret, "failed to initialize io_uring queue");
                 BUG("cannot yet handle failure to initialize io_uring");
             }
 
+            xassert(term->uring.ring.features & IORING_FEAT_NODROP);
+            xassert(term->uring.ring.features & IORING_FEAT_FAST_POLL);
             xassert(term->uring.ring.ring_fd >= 0);
             xassert(term->uring.ring.enter_ring_fd >= 0);
 
