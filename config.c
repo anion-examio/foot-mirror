@@ -474,8 +474,12 @@ str_to_ulong(const char *s, int base, unsigned long *res)
     errno = 0;
     char *end = NULL;
 
-    *res = strtoul(s, &end, base);
-    return errno == 0 && *end == '\0';
+    unsigned long v = strtoul(s, &end, base);
+    if (!(errno == 0 && *end == '\0'))
+        return false;
+
+    *res = v;
+    return true;
 }
 
 static bool NOINLINE
@@ -544,12 +548,13 @@ value_to_float(struct context *ctx, float *res)
     errno = 0;
     char *end = NULL;
 
-    *res = strtof(s, &end);
+    float v = strtof(s, &end);
     if (!(errno == 0 && *end == '\0')) {
         LOG_CONTEXTUAL_ERR("invalid decimal value");
         return false;
     }
 
+    *res = v;
     return true;
 }
 
@@ -641,7 +646,6 @@ value_to_enum(struct context *ctx, const char **value_map, int *res)
         valid_values[idx - 2] = '\0';
 
     LOG_CONTEXTUAL_ERR("not one of %s", valid_values);
-    *res = -1;
     return false;
 }
 
@@ -690,14 +694,18 @@ value_to_two_colors(struct context *ctx,
         goto out;
     }
 
+    uint32_t a, b;
+
     ctx->value = first_as_str;
-    if (!value_to_color(ctx, first, allow_alpha))
+    if (!value_to_color(ctx, &a, allow_alpha))
         goto out;
 
     ctx->value = second_as_str;
-    if (!value_to_color(ctx, second, allow_alpha))
+    if (!value_to_color(ctx, &b, allow_alpha))
         goto out;
 
+    *first = a;
+    *second = b;
     ret = true;
 
 out:

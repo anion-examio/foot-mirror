@@ -70,7 +70,7 @@
 ### Changed
 
 * The label letters are no longer sorted before being assigned to URLs
-  ([#2140]2140[]).
+  ([#2140][2140]).
 * Sending SIGUSR1/SIGUSR2 to a `foot --server` process now causes
   newly spawned client instances to use the selected theme, instead of
   the original one.
@@ -83,6 +83,11 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* Invalid configuration values overriding valid ones in surprising
+  ways.
+
+
 ### Security
 ### Contributors
 
