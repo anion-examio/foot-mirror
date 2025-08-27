@@ -11,7 +11,7 @@
 #include <sys/timerfd.h>
 
 #define LOG_MODULE "csi"
-#define LOG_ENABLE_DBG 0
+#define LOG_ENABLE_DBG 1
 #include "log.h"
 #include "char32.h"
 #include "config.h"
@@ -2224,6 +2224,137 @@ csi_dispatch(struct terminal *term, uint8_t final)
         }
 
         break; /* private[0] == '?' && private[1] == '$' */
+
+    case 0x203e:  /* '> ' */
+        switch (final) {
+        case 'q': {
+            if (term->vt.params.idx == 0) {
+                LOG_WARN("multi-cursor: query support");
+                break;
+            }
+
+            const unsigned shape = vt_param_get(term, 0, 0);
+            switch (shape) {
+            case 0:
+            case 1:
+            case 2:
+            case 3:
+            case 29:
+                LOG_WARN("multi-cursor: %s",
+                         shape == 0 ? "no cursor" :
+                         shape == 1 ? "block cursor" :
+                         shape == 2 ? "beam cursor" :
+                         shape == 3 ? "underline cursor" : "main cursor");
+
+                for (size_t i = 1; i < term->vt.params.idx; i++) {
+                    const unsigned coord_type = vt_param_get(term, i, 0);
+                    const struct vt_param *param = &term->vt.params.v[i];
+
+                    switch (coord_type) {
+                    case 0:
+                        LOG_WARN("multi-cursor: unimplemented: "
+                                 "coordinate relative to main cursor");
+                        break;
+
+                    case 2:{
+                        const size_t pair_count = param->sub.idx / 2;
+
+                        for (size_t j = 0; j < pair_count; j++) {
+                            const unsigned row = param->sub.value[j * 2 + 0];
+                            const unsigned col = param->sub.value[j * 2 + 1];
+                            LOG_WARN("pair: row=%u, col=%u", row, col);
+                        }
+                        break;
+                    }
+
+                    case 4: {
+                        if (param->sub.idx == 0) {
+                            /* Special case, rectangle is the entire screen */
+                            LOG_WARN("rectangle: all screen");
+                        } else {
+                            const size_t rect_count = param->sub.idx / 4;
+                            for (size_t j = 0; j < rect_count; j++) {
+                                const unsigned top = param->sub.value[j * 4 + 0];
+                                const unsigned left = param->sub.value[j * 4 + 1];
+                                const unsigned bottom = param->sub.value[j * 4 + 2];
+                                const unsigned right = param->sub.value[j * 4 + 3];
+
+                                LOG_WARN(
+                                    "rectangle top=%u, left=%u, bottom=%u, right=%u",
+                                    top, left, bottom, right);
+                            }
+                        }
+                        break;
+                    }
+
+                    default:
+                        LOG_WARN("multi-cursor: invalid coordinate type: %u", coord_type);
+                        return;
+                    }
+                }
+                break;
+
+            case 30:
+            case 40:
+                LOG_WARN("multi-cursor: change color of %s", shape == 30 ? "text under cursor" : "cursor");
+
+                const unsigned color_space = vt_param_get(term, 1, 0);
+                switch (color_space) {
+                case 0:
+                    LOG_WARN("use main cursor colors");
+                    break;
+
+                case 1:
+                    LOG_WARN("special (reverse)");
+                    break;
+
+                case 2: {
+                    const struct vt_param *param = &term->vt.params.v[1];
+                    if (param->sub.idx == 3) {
+                        const uint8_t red = param->sub.value[0];
+                        const uint8_t green = param->sub.value[1];
+                        const uint8_t blue = param->sub.value[2];
+                        LOG_WARN("red=%hhu, green=%hhu, blue=%hhu", red, green, blue);
+                    }
+                    break;
+                }
+
+                case 5: {
+                    const struct vt_param *param = &term->vt.params.v[1];
+                    if (param->sub.idx == 1) {
+                        const unsigned color_index = param->sub.value[0];
+                        LOG_WARN("indexed color=%u", color_index);
+                    }
+                    break;
+                }
+
+                default:
+                    LOG_WARN("multi-cursor: invalid color space: %u", color_space);
+                    return;
+                }
+                break;
+
+            case 100:
+                LOG_WARN("multi-cursor: query extra cursors");
+                break;
+
+            case 101:
+                LOG_WARN("multi-cursor: query extra cursors' color");
+                break;
+
+            default:
+                LOG_WARN("multi-cursor: invalid shape/color command: %u", shape);
+                return;
+            }
+
+            break;
+        }
+
+        default:
+            UNHANDLED();
+            break;
+        }
+        break; /* private[0] == '>' && private[1] == ' ' */
 
     default:
         UNHANDLED();
