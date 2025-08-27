@@ -621,7 +621,8 @@ cursor_colors_for_cell(const struct terminal *term, const struct cell *cell,
 static void
 draw_cursor(const struct terminal *term, const struct cell *cell,
             const struct fcft_font *font, pixman_image_t *pix, pixman_color_t *fg,
-            const pixman_color_t *bg, int x, int y, int cols)
+            const pixman_color_t *bg, int x, int y, int cols,
+            enum multi_cursor_shape extra_cursor)
 {
     pixman_color_t cursor_color;
     pixman_color_t text_color;
@@ -680,7 +681,7 @@ draw_cursor(const struct terminal *term, const struct cell *cell,
 static int
 render_cell(struct terminal *term, pixman_image_t *pix,
             pixman_region32_t *damage, struct row *row, int row_no, int col,
-            bool has_cursor)
+            bool has_primary_cursor, enum multi_cursor_shape extra_cursor)
 {
     struct cell *cell = &row->cells[col];
     if (cell->attrs.clean)
@@ -1025,9 +1026,13 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         mtx_unlock(&term->render.workers.lock);
     }
 
-    if (unlikely(has_cursor && term->cursor_style == CURSOR_BLOCK && term->kbd_focus)) {
+    if (unlikely(term->kbd_focus &&
+                 ((has_primary_cursor && term->cursor_style == CURSOR_BLOCK) ||
+                  extra_cursor == MULTI_CURSOR_SHAPE_BLOCK ||
+                  (extra_cursor == MULTI_CURSOR_SHAPE_PRIMARY && term->cursor_style == CURSOR_BLOCK))))
+    {
         const pixman_color_t bg_without_alpha = color_hex_to_pixman(_bg, gamma_correct);
-        draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols);
+        draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols, extra_cursor);
     }
 
     if (cell->wc == 0 || cell->wc >= CELL_SPACER || cell->wc == U'\t' ||
@@ -1176,9 +1181,9 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     }
 
 draw_cursor:
-    if (has_cursor && (term->cursor_style != CURSOR_BLOCK || !term->kbd_focus)) {
+    if (has_primary_cursor && (term->cursor_style != CURSOR_BLOCK || !term->kbd_focus)) {
         const pixman_color_t bg_without_alpha = color_hex_to_pixman(_bg, gamma_correct);
-        draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols);
+        draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols, extra_cursor);
     }
 
     pixman_image_set_clip_region32(pix, NULL);
@@ -1192,23 +1197,13 @@ render_row(struct terminal *term, pixman_image_t *pix,
 {
     if (likely(pixman_region32_empty(&term->multi_cursor.active))) {
         for (int col = term->cols - 1; col >= 0; col--)
-            render_cell(term, pix, damage, row, row_no, col, cursor_col == col);
+            render_cell(term, pix, damage, row, row_no, col, cursor_col == col, MULTI_CURSOR_SHAPE_NONE);
     } else {
-        //enum multi_cursor_shape *extra_cursor = NULL;
-        for (int col = term->cols - 1; col >= 0; col--) {
-            pixman_region32_t match;
-            pixman_region32_init(&match);
-            pixman_region32_intersect_rect(&match, &term->multi_cursor.active, col, row_no, 1, 1);
+        xassert(term->multi_cursor.shapes != NULL);
 
-            const bool is_extra_cursor = pixman_region32_not_empty(&match);
-
-            if (is_extra_cursor) {
-                LOG_WARN("row=%d, col=%d, is-extra-cursor, shape=%d", row_no, col, term->multi_cursor.shapes[row_no * term->cols + col]);
-                xassert(term->multi_cursor.shapes[row_no * term->cols + col] != MULTI_CURSOR_SHAPE_NONE);
-            }
-
-            render_cell(term, pix, damage, row, row_no, col, cursor_col == col || is_extra_cursor);
-        }
+        enum multi_cursor_shape *extra_cursors = &term->multi_cursor.shapes[row_no * term->cols];
+        for (int col = term->cols - 1; col >= 0; col--)
+            render_cell(term, pix, damage, row, row_no, col, cursor_col == col, extra_cursors[col]);
     }
 }
 
@@ -1660,7 +1655,11 @@ render_sixel(struct terminal *term, pixman_image_t *pix,
                     if ((last_row_needs_erase && last_row) ||
                         (last_col_needs_erase && last_col))
                     {
-                        render_cell(term, pix, damage, row, term_row_no, col, cursor_col == col);
+                        /* TODO: extra cursors */
+                        render_cell(term, pix, damage, row, term_row_no, col, cursor_col == col,
+                                    term->multi_cursor.shapes != NULL
+                                        ? term->multi_cursor.shapes[term_row_no * term->cols + col]
+                                        : MULTI_CURSOR_SHAPE_NONE);
                     } else {
                         cell->attrs.clean = 1;
                         cell->attrs.confined = 1;
@@ -1833,7 +1832,7 @@ render_ime_preedit_for_seat(struct terminal *term, struct seat *seat,
             break;
 
         row->cells[col_idx + i] = *cell;
-        render_cell(term, buf->pix[0], NULL, row, row_idx, col_idx + i, false);
+        render_cell(term, buf->pix[0], NULL, row, row_idx, col_idx + i, false, MULTI_CURSOR_SHAPE_NONE);
     }
 
     int start = seat->ime.preedit.cursor.start - ime_ofs;
