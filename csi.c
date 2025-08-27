@@ -2322,15 +2322,23 @@ csi_dispatch(struct terminal *term, uint8_t final)
                             term->cols * term->rows,
                             sizeof(enum multi_cursor_shape));
                     }
+                }
 
-                    int rect_count = 0;
-                    const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
-                    for (int j = 0; j < rect_count; j++) {
-                        const pixman_box32_t *box = &boxes[j];
-                        for (int r = box->y1; r < box->y2; r++) {
-                            for (int c = box->x1; c < box->x2; c++) {
+                int rect_count = 0;
+                const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
+
+                for (int j = 0; j < rect_count; j++) {
+                    const pixman_box32_t *box = &boxes[j];
+                    for (int r = box->y1; r < box->y2; r++) {
+                        struct row *row = term->grid->rows[r];
+                        row->dirty = true;
+
+                        for (int c = box->x1; c < box->x2; c++) {
+                            if (term->multi_cursor.shapes != NULL) {
+                                LOG_WARN("tagging row=%d, col=%d", r, c);
                                 term->multi_cursor.shapes[r * term->cols + c] = shape;
                             }
+                            row->cells[c].attrs.clean = false;
                         }
                     }
                 }
