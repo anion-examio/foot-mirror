@@ -1190,8 +1190,26 @@ render_row(struct terminal *term, pixman_image_t *pix,
            pixman_region32_t *damage, struct row *row,
            int row_no, int cursor_col)
 {
-    for (int col = term->cols - 1; col >= 0; col--)
-        render_cell(term, pix, damage, row, row_no, col, cursor_col == col);
+    if (likely(pixman_region32_empty(&term->multi_cursor.active))) {
+        for (int col = term->cols - 1; col >= 0; col--)
+            render_cell(term, pix, damage, row, row_no, col, cursor_col == col);
+    } else {
+        //enum multi_cursor_shape *extra_cursor = NULL;
+        for (int col = term->cols - 1; col >= 0; col--) {
+            pixman_region32_t match;
+            pixman_region32_init(&match);
+            pixman_region32_intersect_rect(&match, &term->multi_cursor.active, col, row_no, 1, 1);
+
+            const bool is_extra_cursor = pixman_region32_not_empty(&match);
+
+            if (is_extra_cursor) {
+                LOG_WARN("row=%d, col=%d, is-extra-cursor, shape=%d", row_no, col, term->multi_cursor.shapes[row_no * term->cols + col]);
+                xassert(term->multi_cursor.shapes[row_no * term->cols + col] != MULTI_CURSOR_SHAPE_NONE);
+            }
+
+            render_cell(term, pix, damage, row, row_no, col, cursor_col == col || is_extra_cursor);
+        }
+    }
 }
 
 static void
