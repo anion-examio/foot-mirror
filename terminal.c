@@ -1404,6 +1404,11 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .ime_enabled = true,
 #endif
         .active_notifications = tll_init(),
+        .multi_cursor = {
+            .shapes = NULL,
+            .cursor_color = MULTI_CURSOR_COLOR_PRIMARY,
+            .text_color = MULTI_CURSOR_COLOR_PRIMARY,
+        },
     };
 
     pixman_region32_init(&term->render.last_overlay_clip);
@@ -1946,6 +1951,7 @@ term_destroy(struct terminal *term)
     free(term->color_stack.stack);
 
     pixman_region32_fini(&term->multi_cursor.active);
+    free(term->multi_cursor.shapes);
 
     int ret = EXIT_SUCCESS;
 
@@ -2091,6 +2097,15 @@ term_theme_apply(struct terminal *term, const struct color_theme *theme)
 }
 
 void
+term_remove_all_multi_cursors(struct terminal *term)
+{
+    pixman_region32_fini(&term->multi_cursor.active);
+    pixman_region32_init(&term->multi_cursor.active);
+    free(term->multi_cursor.shapes);
+    term->multi_cursor.shapes = NULL;
+}
+
+void
 term_reset(struct terminal *term, bool hard)
 {
     LOG_INFO("%s resetting the terminal", hard ? "hard" : "soft");
@@ -2169,6 +2184,12 @@ term_reset(struct terminal *term, bool hard)
 
     term->bits_affecting_ascii_printer.value = 0;
     term_update_ascii_printer(term);
+
+    term_remove_all_multi_cursors(term);
+    term->multi_cursor.cursor_color_source = MULTI_CURSOR_COLOR_PRIMARY;
+    term->multi_cursor.text_color_source = MULTI_CURSOR_COLOR_PRIMARY;
+    term->multi_cursor.cursor_color = 0;
+    term->multi_cursor.text_color = 0;
 
     if (!hard)
         return;

@@ -987,11 +987,15 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 /* Erase entire screen */
                 term_erase(term, 0, 0, term->rows - 1, term->cols - 1);
                 term->grid->cursor.lcf = false;
+                if (unlikely(term->multi_cursor.shapes != NULL))
+                    term_remove_all_multi_cursors(term);
                 break;
 
             case 3: {
                 /* Erase scrollback */
                 term_erase_scrollback(term);
+                if (unlikely(term->multi_cursor.shapes != NULL))
+                    term_remove_all_multi_cursors(term);
                 break;
             }
 
@@ -2229,7 +2233,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
         switch (final) {
         case 'q': {
             if (term->vt.params.idx == 0) {
-                LOG_WARN("multi-cursor: query support");
+                LOG_WARN("multi-cursor: unimplemented: query support");
                 break;
             }
 
@@ -2300,18 +2304,6 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     }
                 }
 
-                LOG_WARN("modified cursor locations:");
-                int rect_count = 0;
-                const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
-                for (int j = 0; j < rect_count; j++) {
-                    const pixman_box32_t *box = &boxes[j];
-                    for (int r = box->y1; r < box->y2; r++) {
-                        for (int c = box->x1; c < box->x2; c++) {
-                            LOG_WARN("  (%d, %d)", r, c);
-                        }
-                    }
-                }
-
                 if (shape == 0) {
                     /* Cursors disabled, remove from active set */
                     pixman_region32_subtract(&term->multi_cursor.active, &term->multi_cursor.active, &modified);
@@ -2320,34 +2312,45 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     pixman_region32_union(&term->multi_cursor.active, &term->multi_cursor.active, &modified);
                 }
 
-                LOG_WARN("active multi-cursor locations:");
-                rect_count = 0;
-                boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
-                for (int j = 0; j < rect_count; j++) {
-                    const pixman_box32_t *box = &boxes[j];
-                    for (int r = box->y1; r < box->y2; r++) {
-                        for (int c = box->x1; c < box->x2; c++) {
-                            LOG_WARN("  (%d, %d)", r, c);
+                if (pixman_region32_empty(&term->multi_cursor.active)) {
+                    free(term->multi_cursor.shapes);
+                    term->multi_cursor.shapes = NULL;
+                } else {
+                    if (term->multi_cursor.shapes == NULL) {
+                        term->multi_cursor.shapes = xcalloc(
+                            term->cols * term->rows,
+                            sizeof(enum multi_cursor_shape));
+                    }
+
+                    int rect_count = 0;
+                    const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
+                    for (int j = 0; j < rect_count; j++) {
+                        const pixman_box32_t *box = &boxes[j];
+                        for (int r = box->y1; r < box->y2; r++) {
+                            for (int c = box->x1; c < box->x2; c++) {
+                                term->multi_cursor.shapes[r * term->cols + c] = shape;
+                            }
                         }
                     }
                 }
 
-                LOG_WARN("multi-cursors are now %s", pixman_region32_not_empty(&term->multi_cursor.active) ? "active" : "disabled");
                 pixman_region32_fini(&modified);
                 break;
 
             case 30:
-            case 40:
-                LOG_WARN("multi-cursor: change color of %s", shape == 30 ? "text under cursor" : "cursor");
-
+            case 40: {
                 const unsigned color_space = vt_param_get(term, 1, 0);
+                enum multi_cursor_color_source color_source = MULTI_CURSOR_COLOR_PRIMARY;
+                uint32_t color = shape == 30 ? term->multi_cursor.text_color
+                                             : term->multi_cursor.cursor_color;
+
                 switch (color_space) {
                 case 0:
-                    LOG_WARN("use main cursor colors");
+                    color_source = MULTI_CURSOR_COLOR_PRIMARY;
                     break;
 
                 case 1:
-                    LOG_WARN("special (reverse)");
+                    color_source = MULTI_CURSOR_COLOR_SPECIAL;
                     break;
 
                 case 2: {
@@ -2356,7 +2359,8 @@ csi_dispatch(struct terminal *term, uint8_t final)
                         const uint8_t red = param->sub.value[0];
                         const uint8_t green = param->sub.value[1];
                         const uint8_t blue = param->sub.value[2];
-                        LOG_WARN("red=%hhu, green=%hhu, blue=%hhu", red, green, blue);
+                        color_source = MULTI_CURSOR_COLOR_RGB;
+                        color = 0xffu << 24 | red << 16 | green << 8 | blue;
                     }
                     break;
                 }
@@ -2365,7 +2369,8 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     const struct vt_param *param = &term->vt.params.v[1];
                     if (param->sub.idx == 1) {
                         const unsigned color_index = param->sub.value[0];
-                        LOG_WARN("indexed color=%u", color_index);
+                        color_source = MULTI_CURSOR_COLOR_RGB;
+                        color = color_index;
                     }
                     break;
                 }
@@ -2374,14 +2379,23 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     LOG_WARN("multi-cursor: invalid color space: %u", color_space);
                     return;
                 }
+
+                if (shape == 30) {
+                    term->multi_cursor.text_color_source = color_source;
+                    term->multi_cursor.text_color = color;
+                } else {
+                    term->multi_cursor.cursor_color_source = color_source;
+                    term->multi_cursor.cursor_color = color;
+                }
                 break;
+            }
 
             case 100:
-                LOG_WARN("multi-cursor: query extra cursors");
+                LOG_WARN("multi-cursor: unimplemented: query extra cursors");
                 break;
 
             case 101:
-                LOG_WARN("multi-cursor: query extra cursors' color");
+                LOG_WARN("multi-cursor: unimplemented: query extra cursors' color");
                 break;
 
             default:

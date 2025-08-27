@@ -4812,6 +4812,8 @@ render_resize(struct terminal *term, int width, int height, uint8_t opts)
 
     term->render.last_cursor.row = NULL;
 
+    term_remove_all_multi_cursors(term);
+
 damage_view:
     /* Signal TIOCSWINSZ */
     send_dimensions_to_client(term);

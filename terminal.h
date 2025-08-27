@@ -407,6 +407,23 @@ struct colors {
     enum which_color_theme active_theme;
 };
 
+/* Synchronized with the multi-cursor protocol specification */
+enum multi_cursor_shape {
+    MULTI_CURSOR_SHAPE_NONE = 0,
+    MULTI_CURSOR_SHAPE_BLOCK = 1,
+    MULTI_CURSOR_SHAPE_BEAM = 2,
+    MULTI_CURSOR_SHAPE_UNDERLINE = 3,
+    MULTI_CURSOR_SHAPE_PRIMARY = 29,
+};
+
+/* Synchronized with the multi-cursor protocol specification */
+enum multi_cursor_color_source {
+    MULTI_CURSOR_COLOR_PRIMARY = 0,
+    MULTI_CURSOR_COLOR_SPECIAL = 1,
+    MULTI_CURSOR_COLOR_RGB = 2,
+    MULTI_CURSOR_COLOR_256 = 5,
+};
+
 struct terminal {
     struct fdm *fdm;
     struct reaper *reaper;
@@ -834,6 +851,11 @@ struct terminal {
 
     struct {
         pixman_region32_t active;
+        enum multi_cursor_shape *shapes;  /* Flattened 2-dimensional array */
+        enum multi_cursor_color_source cursor_color_source;
+        enum multi_cursor_color_source text_color_source;
+        uint32_t cursor_color;
+        uint32_t text_color;
     } multi_cursor;
 };
 
@@ -991,6 +1013,8 @@ void term_send_size_notification(struct terminal *term);
 void term_theme_switch_to_1(struct terminal *term);
 void term_theme_switch_to_2(struct terminal *term);
 void term_theme_toggle(struct terminal *term);
+
+void term_remove_all_multi_cursors(struct terminal *term);
 
 static inline void term_reset_grapheme_state(struct terminal *term)
 {
