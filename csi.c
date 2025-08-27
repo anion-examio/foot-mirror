@@ -2246,6 +2246,9 @@ csi_dispatch(struct terminal *term, uint8_t final)
                          shape == 2 ? "beam cursor" :
                          shape == 3 ? "underline cursor" : "main cursor");
 
+                pixman_region32_t modified;
+                pixman_region32_init(&modified);
+
                 for (size_t i = 1; i < term->vt.params.idx; i++) {
                     const unsigned coord_type = vt_param_get(term, i, 0);
                     const struct vt_param *param = &term->vt.params.v[i];
@@ -2260,9 +2263,10 @@ csi_dispatch(struct terminal *term, uint8_t final)
                         const size_t pair_count = param->sub.idx / 2;
 
                         for (size_t j = 0; j < pair_count; j++) {
-                            const unsigned row = param->sub.value[j * 2 + 0];
-                            const unsigned col = param->sub.value[j * 2 + 1];
+                            const unsigned row = min(param->sub.value[j * 2 + 0], term->rows) - 1;
+                            const unsigned col = min(param->sub.value[j * 2 + 1], term->cols) - 1;
                             LOG_WARN("pair: row=%u, col=%u", row, col);
+                            pixman_region32_union_rect(&modified, &modified, col, row, 1, 1);
                         }
                         break;
                     }
@@ -2271,17 +2275,20 @@ csi_dispatch(struct terminal *term, uint8_t final)
                         if (param->sub.idx == 0) {
                             /* Special case, rectangle is the entire screen */
                             LOG_WARN("rectangle: all screen");
+                            pixman_region32_union_rect(&modified, &modified, 0, 0, term->cols, term->rows);
                         } else {
                             const size_t rect_count = param->sub.idx / 4;
                             for (size_t j = 0; j < rect_count; j++) {
-                                const unsigned top = param->sub.value[j * 4 + 0];
-                                const unsigned left = param->sub.value[j * 4 + 1];
-                                const unsigned bottom = param->sub.value[j * 4 + 2];
-                                const unsigned right = param->sub.value[j * 4 + 3];
+                                const unsigned top = min(param->sub.value[j * 4 + 0], term->rows) - 1;
+                                const unsigned left = min(param->sub.value[j * 4 + 1], term->cols) - 1;
+                                const unsigned bottom = max(min(param->sub.value[j * 4 + 2], term->rows) - 1, top);
+                                const unsigned right = max(min(param->sub.value[j * 4 + 3], term->cols) - 1, left);
 
                                 LOG_WARN(
-                                    "rectangle top=%u, left=%u, bottom=%u, right=%u",
-                                    top, left, bottom, right);
+                                    "rectangle top=%u, left=%u, bottom=%u, right=%u (width=%u, height=%u",
+                                    top, left, bottom, right, right - left + 1, bottom - top + 1);
+
+                                pixman_region32_union_rect(&modified, &modified, left, top, right - left + 1, bottom - top + 1);
                             }
                         }
                         break;
@@ -2292,6 +2299,41 @@ csi_dispatch(struct terminal *term, uint8_t final)
                         return;
                     }
                 }
+
+                LOG_WARN("modified cursor locations:");
+                int rect_count = 0;
+                const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
+                for (int j = 0; j < rect_count; j++) {
+                    const pixman_box32_t *box = &boxes[j];
+                    for (int r = box->y1; r < box->y2; r++) {
+                        for (int c = box->x1; c < box->x2; c++) {
+                            LOG_WARN("  (%d, %d)", r, c);
+                        }
+                    }
+                }
+
+                if (shape == 0) {
+                    /* Cursors disabled, remove from active set */
+                    pixman_region32_subtract(&term->multi_cursor.active, &term->multi_cursor.active, &modified);
+                } else {
+                    /* Add new/updated cursors to active set */
+                    pixman_region32_union(&term->multi_cursor.active, &term->multi_cursor.active, &modified);
+                }
+
+                LOG_WARN("active multi-cursor locations:");
+                rect_count = 0;
+                boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
+                for (int j = 0; j < rect_count; j++) {
+                    const pixman_box32_t *box = &boxes[j];
+                    for (int r = box->y1; r < box->y2; r++) {
+                        for (int c = box->x1; c < box->x2; c++) {
+                            LOG_WARN("  (%d, %d)", r, c);
+                        }
+                    }
+                }
+
+                LOG_WARN("multi-cursors are now %s", pixman_region32_not_empty(&term->multi_cursor.active) ? "active" : "disabled");
+                pixman_region32_fini(&modified);
                 break;
 
             case 30:

@@ -831,6 +831,10 @@ struct terminal {
 
     bool grapheme_shaping;
     bool size_notifications;
+
+    struct {
+        pixman_region32_t active;
+    } multi_cursor;
 };
 
 struct config;

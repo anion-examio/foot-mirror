@@ -1424,6 +1424,8 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         term->notification_icons[i].tmp_file_fd = -1;
     }
 
+    pixman_region32_init(&term->multi_cursor.active);
+
     add_utmp_record(conf, reaper, ptmx);
 
     if (!pty_path) {
@@ -1942,6 +1944,8 @@ term_destroy(struct terminal *term)
     free(term->cwd);
     free(term->mouse_user_cursor);
     free(term->color_stack.stack);
+
+    pixman_region32_fini(&term->multi_cursor.active);
 
     int ret = EXIT_SUCCESS;
 
