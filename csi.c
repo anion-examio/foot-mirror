@@ -540,6 +540,7 @@ decset_decrst(struct terminal *term, unsigned param, bool enable)
         term->bits_affecting_ascii_printer.sixels =
             tll_length(term->grid->sixel_images) > 0;
         term_update_ascii_printer(term);
+        term_remove_all_multi_cursors(term);
         break;
 
     case 1070:
