@@ -624,10 +624,76 @@ draw_cursor(const struct terminal *term, const struct cell *cell,
             const pixman_color_t *bg, int x, int y, int cols,
             enum multi_cursor_shape extra_cursor)
 {
+    const bool gamma_correct = wayl_do_linear_blending(term->wl, term->conf);
+
+    enum cursor_style style = term->cursor_style;
+
     pixman_color_t cursor_color;
     pixman_color_t text_color;
-    cursor_colors_for_cell(term, cell, fg, bg, &cursor_color, &text_color,
-                           wayl_do_linear_blending(term->wl, term->conf));
+
+    cursor_colors_for_cell(
+        term, cell, fg, bg, &cursor_color, &text_color, gamma_correct);
+
+    if (unlikely(extra_cursor != MULTI_CURSOR_SHAPE_NONE)) {
+
+        /* Map multi-cursor shape to something the draw logic understands */
+        switch (extra_cursor) {
+        case MULTI_CURSOR_SHAPE_NONE:      xassert(false); break;
+        case MULTI_CURSOR_SHAPE_PRIMARY:   break;
+        case MULTI_CURSOR_SHAPE_BLOCK:     style = CURSOR_BLOCK; break;
+        case MULTI_CURSOR_SHAPE_BEAM:      style = CURSOR_BEAM; break;
+        case MULTI_CURSOR_SHAPE_UNDERLINE: style = CURSOR_UNDERLINE; break;
+        }
+
+        switch (term->multi_cursor.cursor_color_source) {
+        case MULTI_CURSOR_COLOR_PRIMARY:
+            /* TODO: use the colors of the primary cursor's cell, not
+               this cell's. This is only a problem when the primary
+               cursor doesn't used fixed colors, but reverses the
+               cell's colors */
+            break;
+
+        case MULTI_CURSOR_COLOR_256:
+            xassert(term->multi_cursor.cursor_color < 256);
+            cursor_color = color_hex_to_pixman(term->colors.table[term->multi_cursor.cursor_color], gamma_correct);
+            break;
+
+        case MULTI_CURSOR_COLOR_RGB:
+            cursor_color = color_hex_to_pixman(term->multi_cursor.cursor_color, gamma_correct);
+            break;
+
+        case MULTI_CURSOR_COLOR_SPECIAL:
+            /* Reverse fg/bg */
+            cursor_color = *fg;
+            text_color = *bg;
+            break;
+        }
+
+        if (term->multi_cursor.cursor_color_source != MULTI_CURSOR_COLOR_SPECIAL) {
+            switch (term->multi_cursor.text_color_source) {
+            case MULTI_CURSOR_COLOR_PRIMARY:
+                /* TODO: use the colors of the primary cursor's cell,
+                   not this cell's. This is only a problem when the
+                   primary cursor doesn't used fixed colors, but
+                   reverses the cell's colors */
+                break;
+
+            case MULTI_CURSOR_COLOR_256:
+                xassert(term->multi_cursor.text_color < 256);
+                text_color = color_hex_to_pixman(term->colors.table[term->multi_cursor.text_color], gamma_correct);
+                break;
+
+            case MULTI_CURSOR_COLOR_RGB:
+                text_color = color_hex_to_pixman(term->multi_cursor.text_color, gamma_correct);
+                break;
+
+            case MULTI_CURSOR_COLOR_SPECIAL:
+                text_color = *bg;  /* Verify if this is correct */
+                break;
+            }
+        }
+    }
+
 
     if (unlikely(!term->kbd_focus)) {
         switch (term->conf->cursor.unfocused_style) {
@@ -643,7 +709,8 @@ draw_cursor(const struct terminal *term, const struct cell *cell,
         }
     }
 
-    switch (term->cursor_style) {
+
+    switch (style) {
     case CURSOR_BLOCK:
         if (likely(term->cursor_blink.state == CURSOR_BLINK_ON) ||
             !term->kbd_focus)
@@ -686,6 +753,11 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     struct cell *cell = &row->cells[col];
     if (cell->attrs.clean)
         return 0;
+
+    if (unlikely(has_primary_cursor)) {
+        /* Prefer primary cursor over extra cursor */
+        extra_cursor = MULTI_CURSOR_SHAPE_NONE;
+    }
 
     cell->attrs.clean = 1;
     cell->attrs.confined = true;
@@ -1181,7 +1253,12 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     }
 
 draw_cursor:
-    if (has_primary_cursor && (term->cursor_style != CURSOR_BLOCK || !term->kbd_focus)) {
+    /* TODO: simplify this expression */
+    if ((has_primary_cursor && (term->cursor_style != CURSOR_BLOCK || !term->kbd_focus)) ||
+        (extra_cursor != MULTI_CURSOR_SHAPE_NONE &&
+         extra_cursor != MULTI_CURSOR_SHAPE_BLOCK &&
+         !(extra_cursor == MULTI_CURSOR_SHAPE_PRIMARY && term->cursor_style == CURSOR_BLOCK)))
+    {
         const pixman_color_t bg_without_alpha = color_hex_to_pixman(_bg, gamma_correct);
         draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols, extra_cursor);
     }
