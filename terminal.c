@@ -525,6 +525,24 @@ cursor_refresh(struct terminal *term)
 
     term->grid->cur_row->cells[term->grid->cursor.point.col].attrs.clean = 0;
     term->grid->cur_row->dirty = true;
+
+    if (unlikely(term->multi_cursor.shapes != NULL)) {
+        int rect_count = 0;
+        const pixman_box32_t *boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
+
+        for (int i = 0; i < rect_count; i++) {
+            const pixman_box32_t *box = &boxes[i];
+
+            for (int r = box->y1; r < box->y2; r++) {
+                struct row *row = term->grid->rows[r];
+                row->dirty = true;
+
+                for (int c = box->x1; c < box->x2; c++)
+                    row->cells[c].attrs.clean = false;
+            }
+        }
+    }
+
     render_refresh(term);
 }
 
