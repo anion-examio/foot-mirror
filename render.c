@@ -1272,15 +1272,19 @@ render_row(struct terminal *term, pixman_image_t *pix,
            pixman_region32_t *damage, struct row *row,
            int row_no, int cursor_col)
 {
-    if (likely(pixman_region32_empty(&term->multi_cursor.active))) {
-        for (int col = term->cols - 1; col >= 0; col--)
-            render_cell(term, pix, damage, row, row_no, col, cursor_col == col, MULTI_CURSOR_SHAPE_NONE);
+    if (likely(term->multi_cursor.shapes == NULL)) {
+        for (int col = term->cols - 1; col >= 0; col--) {
+            render_cell(term, pix, damage, row, row_no, col,
+                        cursor_col == col, MULTI_CURSOR_SHAPE_NONE);
+        }
     } else {
-        xassert(term->multi_cursor.shapes != NULL);
+        enum multi_cursor_shape *extra_cursors =
+            &term->multi_cursor.shapes[row_no * term->cols + term->cols - 1];
 
-        enum multi_cursor_shape *extra_cursors = &term->multi_cursor.shapes[row_no * term->cols];
-        for (int col = term->cols - 1; col >= 0; col--)
-            render_cell(term, pix, damage, row, row_no, col, cursor_col == col, extra_cursors[col]);
+        for (int col = term->cols - 1; col >= 0; col--, extra_cursors--) {
+            render_cell(term, pix, damage, row, row_no, col,
+                        cursor_col == col, *extra_cursors);
+        }
     }
 }
 
