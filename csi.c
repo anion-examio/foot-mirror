@@ -2245,7 +2245,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
             case MULTI_CURSOR_SHAPE_BEAM:
             case MULTI_CURSOR_SHAPE_UNDERLINE:
             case MULTI_CURSOR_SHAPE_PRIMARY:
-                LOG_WARN("multi-cursor: %s",
+                LOG_DBG("multi-cursor: %s",
                          shape == MULTI_CURSOR_SHAPE_NONE ? "no cursor" :
                          shape == MULTI_CURSOR_SHAPE_BLOCK ? "block cursor" :
                          shape == MULTI_CURSOR_SHAPE_BEAM ? "beam cursor" :
@@ -2260,7 +2260,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
 
                     switch (coord_type) {
                     case 0:
-                        LOG_WARN("multi-cursor: unimplemented: "
+                        LOG_DBG("multi-cursor: unimplemented: "
                                  "coordinate relative to main cursor");
                         break;
 
@@ -2270,7 +2270,8 @@ csi_dispatch(struct terminal *term, uint8_t final)
                         for (size_t j = 0; j < pair_count; j++) {
                             const unsigned row = min(param->sub.value[j * 2 + 0], term->rows) - 1;
                             const unsigned col = min(param->sub.value[j * 2 + 1], term->cols) - 1;
-                            LOG_WARN("pair: row=%u, col=%u", row, col);
+
+                            LOG_DBG("pair: row=%u, col=%u", row, col);
                             pixman_region32_union_rect(&modified, &modified, col, row, 1, 1);
                         }
                         break;
@@ -2279,7 +2280,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     case 4: {
                         if (param->sub.idx == 0) {
                             /* Special case, rectangle is the entire screen */
-                            LOG_WARN("rectangle: all screen");
+                            LOG_DBG("rectangle: all screen");
                             pixman_region32_union_rect(&modified, &modified, 0, 0, term->cols, term->rows);
                         } else {
                             const size_t rect_count = param->sub.idx / 4;
@@ -2289,7 +2290,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                                 const unsigned bottom = max(min(param->sub.value[j * 4 + 2], term->rows) - 1, top);
                                 const unsigned right = max(min(param->sub.value[j * 4 + 3], term->cols) - 1, left);
 
-                                LOG_WARN(
+                                LOG_DBG(
                                     "rectangle top=%u, left=%u, bottom=%u, right=%u (width=%u, height=%u",
                                     top, left, bottom, right, right - left + 1, bottom - top + 1);
 
@@ -2331,7 +2332,8 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 }
 
                 int rect_count = 0;
-                const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
+                const pixman_box32_t *boxes =
+                    pixman_region32_rectangles(&modified, &rect_count);
 
                 /* Set shape, and dirty affected cells */
                 for (int j = 0; j < rect_count; j++) {
@@ -2341,10 +2343,8 @@ csi_dispatch(struct terminal *term, uint8_t final)
                         row->dirty = true;
 
                         for (int c = box->x1; c < box->x2; c++) {
-                            if (term->multi_cursor.shapes != NULL) {
-                                LOG_WARN("tagging row=%d, col=%d", r, c);
+                            if (term->multi_cursor.shapes != NULL)
                                 term->multi_cursor.shapes[r * term->cols + c] = shape;
-                            }
                             row->cells[c].attrs.clean = false;
                         }
                     }
