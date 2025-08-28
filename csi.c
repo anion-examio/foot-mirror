@@ -11,7 +11,7 @@
 #include <sys/timerfd.h>
 
 #define LOG_MODULE "csi"
-#define LOG_ENABLE_DBG 0
+#define LOG_ENABLE_DBG 1
 #include "log.h"
 #include "char32.h"
 #include "config.h"
@@ -2445,7 +2445,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 term_to_slave(term, "\033[>101", 7);
 
                 char reply[64];
-                int len;
+                int len = 0;
 
                 switch (term->multi_cursor.text_color_source) {
                 case MULTI_CURSOR_COLOR_PRIMARY:
@@ -2476,6 +2476,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
 
                 term_to_slave(term, reply, len);
 
+                len = 0;
                 switch (term->multi_cursor.cursor_color_source) {
                 case MULTI_CURSOR_COLOR_PRIMARY:
                     len = snprintf(reply, sizeof(reply), ";40:%u", MULTI_CURSOR_COLOR_PRIMARY);
