@@ -2240,16 +2240,16 @@ csi_dispatch(struct terminal *term, uint8_t final)
 
             const unsigned shape = vt_param_get(term, 0, 0);
             switch (shape) {
-            case 0:
-            case 1:
-            case 2:
-            case 3:
-            case 29:
+            case MULTI_CURSOR_SHAPE_NONE:
+            case MULTI_CURSOR_SHAPE_BLOCK:
+            case MULTI_CURSOR_SHAPE_BEAM:
+            case MULTI_CURSOR_SHAPE_UNDERLINE:
+            case MULTI_CURSOR_SHAPE_PRIMARY:
                 LOG_WARN("multi-cursor: %s",
-                         shape == 0 ? "no cursor" :
-                         shape == 1 ? "block cursor" :
-                         shape == 2 ? "beam cursor" :
-                         shape == 3 ? "underline cursor" : "main cursor");
+                         shape == MULTI_CURSOR_SHAPE_NONE ? "no cursor" :
+                         shape == MULTI_CURSOR_SHAPE_BLOCK ? "block cursor" :
+                         shape == MULTI_CURSOR_SHAPE_BEAM ? "beam cursor" :
+                         shape == MULTI_CURSOR_SHAPE_UNDERLINE ? "underline cursor" : "main cursor");
 
                 pixman_region32_t modified;
                 pixman_region32_init(&modified);
@@ -2305,12 +2305,18 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     }
                 }
 
-                if (shape == 0) {
+                if (shape == MULTI_CURSOR_SHAPE_NONE) {
                     /* Cursors disabled, remove from active set */
-                    pixman_region32_subtract(&term->multi_cursor.active, &term->multi_cursor.active, &modified);
+                    pixman_region32_subtract(
+                        &term->multi_cursor.active,
+                        &term->multi_cursor.active,
+                        &modified);
                 } else {
                     /* Add new/updated cursors to active set */
-                    pixman_region32_union(&term->multi_cursor.active, &term->multi_cursor.active, &modified);
+                    pixman_region32_union(
+                        &term->multi_cursor.active,
+                        &term->multi_cursor.active,
+                        &modified);
                 }
 
                 if (pixman_region32_empty(&term->multi_cursor.active)) {
@@ -2327,6 +2333,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 int rect_count = 0;
                 const pixman_box32_t *boxes = pixman_region32_rectangles(&modified, &rect_count);
 
+                /* Set shape, and dirty affected cells */
                 for (int j = 0; j < rect_count; j++) {
                     const pixman_box32_t *box = &boxes[j];
                     for (int r = box->y1; r < box->y2; r++) {
@@ -2346,23 +2353,25 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 pixman_region32_fini(&modified);
                 break;
 
-            case 30:
-            case 40: {
+            case MULTI_CURSOR_SHAPE_TEXT_COLOR:
+            case MULTI_CURSOR_SHAPE_CURSOR_COLOR: {
                 const unsigned color_space = vt_param_get(term, 1, 0);
+
                 enum multi_cursor_color_source color_source = MULTI_CURSOR_COLOR_PRIMARY;
-                uint32_t color = shape == 30 ? term->multi_cursor.text_color
-                                             : term->multi_cursor.cursor_color;
+                uint32_t color = shape == MULTI_CURSOR_SHAPE_TEXT_COLOR
+                    ? term->multi_cursor.text_color
+                    : term->multi_cursor.cursor_color;
 
                 switch (color_space) {
-                case 0:
+                case MULTI_CURSOR_COLOR_PRIMARY:
                     color_source = MULTI_CURSOR_COLOR_PRIMARY;
                     break;
 
-                case 1:
+                case MULTI_CURSOR_COLOR_SPECIAL:
                     color_source = MULTI_CURSOR_COLOR_SPECIAL;
                     break;
 
-                case 2: {
+                case MULTI_CURSOR_COLOR_RGB: {
                     const struct vt_param *param = &term->vt.params.v[1];
                     if (param->sub.idx == 3) {
                         const uint8_t red = param->sub.value[0];
@@ -2374,11 +2383,13 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     break;
                 }
 
-                case 5: {
+                case MULTI_CURSOR_COLOR_256: {
                     const struct vt_param *param = &term->vt.params.v[1];
                     if (param->sub.idx == 1) {
-                        const unsigned color_index = param->sub.value[0];
-                        color_source = MULTI_CURSOR_COLOR_RGB;
+                        const unsigned color_index = min(
+                            param->sub.value[0], ALEN(term->colors.table) - 1);
+
+                        color_source = MULTI_CURSOR_COLOR_256;
                         color = color_index;
                     }
                     break;
@@ -2389,7 +2400,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     return;
                 }
 
-                if (shape == 30) {
+                if (shape == MULTI_CURSOR_SHAPE_TEXT_COLOR) {
                     term->multi_cursor.text_color_source = color_source;
                     term->multi_cursor.text_color = color;
                 } else {
@@ -2399,11 +2410,11 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 break;
             }
 
-            case 100:
+            case MULTI_CURSOR_SHAPE_QUERY_CURSORS:
                 LOG_WARN("multi-cursor: unimplemented: query extra cursors");
                 break;
 
-            case 101:
+            case MULTI_CURSOR_SHAPE_QUERY_COLORS:
                 LOG_WARN("multi-cursor: unimplemented: query extra cursors' color");
                 break;
 

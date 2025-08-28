@@ -414,6 +414,12 @@ enum multi_cursor_shape {
     MULTI_CURSOR_SHAPE_BEAM = 2,
     MULTI_CURSOR_SHAPE_UNDERLINE = 3,
     MULTI_CURSOR_SHAPE_PRIMARY = 29,
+
+    MULTI_CURSOR_SHAPE_TEXT_COLOR = 30,
+    MULTI_CURSOR_SHAPE_CURSOR_COLOR = 40,
+
+    MULTI_CURSOR_SHAPE_QUERY_CURSORS = 100,
+    MULTI_CURSOR_SHAPE_QUERY_COLORS = 101,
 };
 
 /* Synchronized with the multi-cursor protocol specification */
