@@ -2234,7 +2234,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
         switch (final) {
         case 'q': {
             if (term->vt.params.idx == 0) {
-                LOG_WARN("multi-cursor: unimplemented: query support");
+                term_to_slave(term, "\033[>1;2;3;29;30;40;100;101 q", 27);
                 break;
             }
 
@@ -2410,12 +2410,102 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 break;
             }
 
-            case MULTI_CURSOR_SHAPE_QUERY_CURSORS:
-                LOG_WARN("multi-cursor: unimplemented: query extra cursors");
+            case MULTI_CURSOR_SHAPE_QUERY_CURSORS: {
+                term_to_slave(term, "\033[>100", 6);
+
+                int rect_count = 0;
+                const pixman_box32_t *boxes =
+                    pixman_region32_rectangles(
+                        &term->multi_cursor.active, &rect_count);
+
+                xassert(rect_count > 0 || term->multi_cursor.shapes == NULL);
+
+                for (int j = 0; j < rect_count; j++) {
+                    const pixman_box32_t *box = &boxes[j];
+                    for (int r = box->y1; r < box->y2; r++) {
+                        for (int c = box->x1; c < box->x2; c++) {
+                            const enum multi_cursor_shape shape =
+                                term->multi_cursor.shapes[r * term->cols + c];
+
+                            xassert(shape != MULTI_CURSOR_SHAPE_NONE);
+                            char reply[64];
+                            int len = snprintf(
+                                reply, sizeof(reply),
+                                ";%u:2:%d:%d", shape, r + 1, c + 1);
+
+                            term_to_slave(term, reply, len);
+                        }
+                    }
+                }
+                term_to_slave(term, " q", 2);
                 break;
+            }
 
             case MULTI_CURSOR_SHAPE_QUERY_COLORS:
-                LOG_WARN("multi-cursor: unimplemented: query extra cursors' color");
+                term_to_slave(term, "\033[>101", 7);
+
+                char reply[64];
+                int len;
+
+                switch (term->multi_cursor.text_color_source) {
+                case MULTI_CURSOR_COLOR_PRIMARY:
+                    len = snprintf(reply, sizeof(reply), ";30:%u", MULTI_CURSOR_COLOR_PRIMARY);
+                    break;
+
+                case MULTI_CURSOR_COLOR_SPECIAL:
+                    len = snprintf(reply, sizeof(reply), ";30:%u", MULTI_CURSOR_COLOR_SPECIAL);
+                    break;
+
+                case MULTI_CURSOR_COLOR_RGB: {
+                    const uint32_t color = term->multi_cursor.text_color;
+                    const uint8_t red = (color >> 16) & 0xff;
+                    const uint8_t green = (color >> 8) & 0xff;
+                    const uint8_t blue = (color >> 0) & 0xff;
+
+                    len = snprintf(reply, sizeof(reply), ";30:%u:%hhu:%hhu:%hhu",
+                                   MULTI_CURSOR_COLOR_RGB, red, green, blue);
+                    break;
+                }
+
+                case MULTI_CURSOR_COLOR_256:
+                    len = snprintf(reply, sizeof(reply), ";30:%u:%u",
+                                   MULTI_CURSOR_COLOR_256,
+                                   term->multi_cursor.text_color);
+                    break;
+                }
+
+                term_to_slave(term, reply, len);
+
+                switch (term->multi_cursor.cursor_color_source) {
+                case MULTI_CURSOR_COLOR_PRIMARY:
+                    len = snprintf(reply, sizeof(reply), ";40:%u", MULTI_CURSOR_COLOR_PRIMARY);
+                    break;
+
+                case MULTI_CURSOR_COLOR_SPECIAL:
+                    len = snprintf(reply, sizeof(reply), ";40:%u", MULTI_CURSOR_COLOR_SPECIAL);
+                    break;
+
+                case MULTI_CURSOR_COLOR_RGB: {
+                    const uint32_t color = term->multi_cursor.cursor_color;
+                    const uint8_t red = (color >> 16) & 0xff;
+                    const uint8_t green = (color >> 8) & 0xff;
+                    const uint8_t blue = (color >> 0) & 0xff;
+
+                    len = snprintf(reply, sizeof(reply), ";40:%u:%hhu:%hhu:%hhu",
+                                   MULTI_CURSOR_COLOR_RGB, red, green, blue);
+                    break;
+                }
+
+                case MULTI_CURSOR_COLOR_256:
+                    len = snprintf(reply, sizeof(reply), ";40:%u:%u",
+                                   MULTI_CURSOR_COLOR_256,
+                                   term->multi_cursor.cursor_color);
+                    break;
+                }
+
+                term_to_slave(term, reply, len);
+
+                term_to_slave(term, " q", 2);
                 break;
 
             default:
