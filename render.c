@@ -1124,11 +1124,60 @@ render_cell(struct terminal *term, pixman_image_t *pix,
         mtx_unlock(&term->render.workers.lock);
     }
 
-    if (unlikely(term->kbd_focus &&
-                 ((has_primary_cursor && term->cursor_style == CURSOR_BLOCK) ||
-                  extra_cursor == MULTI_CURSOR_SHAPE_BLOCK ||
-                  (extra_cursor == MULTI_CURSOR_SHAPE_PRIMARY && term->cursor_style == CURSOR_BLOCK))))
-    {
+    bool has_cursor = false;
+    bool draw_cursor_before_glyph = false;
+
+    if (unlikely(has_primary_cursor || extra_cursor != MULTI_CURSOR_SHAPE_NONE)) {
+        has_cursor = true;
+
+        if (likely(has_primary_cursor)) {
+            if (term->kbd_focus) {
+                draw_cursor_before_glyph = term->cursor_style == CURSOR_BLOCK;
+            } else {
+                const struct config *conf = term->conf;
+
+                switch (conf->cursor.unfocused_style) {
+                case CURSOR_UNFOCUSED_UNCHANGED:
+                    draw_cursor_before_glyph = term->cursor_style == CURSOR_BLOCK;
+                    break;
+
+                case CURSOR_UNFOCUSED_HOLLOW:
+                    draw_cursor_before_glyph = true;
+                    break;
+
+                case CURSOR_UNFOCUSED_NONE:
+                    break;
+                }
+            }
+        } else {
+            if (term->kbd_focus) {
+                draw_cursor_before_glyph =
+                    extra_cursor == MULTI_CURSOR_SHAPE_BLOCK ||
+                    (extra_cursor == MULTI_CURSOR_SHAPE_PRIMARY &&
+                     term->cursor_style == CURSOR_BLOCK);
+            } else {
+                const struct config *conf = term->conf;
+
+                switch (conf->cursor.unfocused_style) {
+                case CURSOR_UNFOCUSED_UNCHANGED:
+                    draw_cursor_before_glyph =
+                        extra_cursor == MULTI_CURSOR_SHAPE_BLOCK ||
+                        (extra_cursor == MULTI_CURSOR_SHAPE_PRIMARY &&
+                         term->cursor_style == CURSOR_BLOCK);
+                    break;
+
+                case CURSOR_UNFOCUSED_HOLLOW:
+                    draw_cursor_before_glyph = true;
+                    break;
+
+                case CURSOR_UNFOCUSED_NONE:
+                    break;
+                }
+            }
+        }
+    }
+
+    if (unlikely(draw_cursor_before_glyph)) {
         const pixman_color_t bg_without_alpha = color_hex_to_pixman(_bg, gamma_correct);
         draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols, extra_cursor);
     }
@@ -1279,12 +1328,7 @@ render_cell(struct terminal *term, pixman_image_t *pix,
     }
 
 draw_cursor:
-    /* TODO: simplify this expression */
-    if ((has_primary_cursor && (term->cursor_style != CURSOR_BLOCK || !term->kbd_focus)) ||
-        (extra_cursor != MULTI_CURSOR_SHAPE_NONE &&
-         extra_cursor != MULTI_CURSOR_SHAPE_BLOCK &&
-         !(extra_cursor == MULTI_CURSOR_SHAPE_PRIMARY && term->cursor_style == CURSOR_BLOCK)))
-    {
+    if (unlikely(has_cursor && !draw_cursor_before_glyph)) {
         const pixman_color_t bg_without_alpha = color_hex_to_pixman(_bg, gamma_correct);
         draw_cursor(term, cell, font, pix, &fg, &bg_without_alpha, x, y, cell_cols, extra_cursor);
     }
