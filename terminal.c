@@ -2117,6 +2117,13 @@ term_theme_apply(struct terminal *term, const struct color_theme *theme)
 void
 term_remove_all_multi_cursors(struct terminal *term)
 {
+    if (term->multi_cursor.shapes == NULL) {
+#if defined(_DEBUG)
+        xassert(pixman_region32_empty(&term->multi_cursor.active));
+#endif
+        return;
+    }
+
     pixman_region32_fini(&term->multi_cursor.active);
     pixman_region32_init(&term->multi_cursor.active);
     free(term->multi_cursor.shapes);

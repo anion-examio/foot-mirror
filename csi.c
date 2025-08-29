@@ -988,15 +988,13 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 /* Erase entire screen */
                 term_erase(term, 0, 0, term->rows - 1, term->cols - 1);
                 term->grid->cursor.lcf = false;
-                if (unlikely(term->multi_cursor.shapes != NULL))
-                    term_remove_all_multi_cursors(term);
+                term_remove_all_multi_cursors(term);
                 break;
 
             case 3: {
                 /* Erase scrollback */
                 term_erase_scrollback(term);
-                if (unlikely(term->multi_cursor.shapes != NULL))
-                    term_remove_all_multi_cursors(term);
+                term_remove_all_multi_cursors(term);
                 break;
             }
 
