@@ -231,7 +231,7 @@ empty string to be set, but it must be quoted: *KEY=""*)
 	
 	Default: _no_.
 
-*upppercase-regex-insert*
+*uppercase-regex-insert*
 	Boolean. When enabled, inputting an uppercase hint character in
 	*show-urls-copy* or *regex-copy* mode will insert the selected
 	text into the prompt in addition to copying it to the clipboard.
