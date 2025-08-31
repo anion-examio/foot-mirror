@@ -3703,6 +3703,32 @@ grid_render(struct terminal *term)
 
     pixman_region32_fini(&damage);
 
+    if (unlikely(term->multi_cursor.shapes != NULL)) {
+        /*
+         * WIP: dirty all multi-cursors again, to ensure they're
+         * re-rendered the next frame. This is needed to properly
+         * _erase_ multi-cursors that have been scrolled (the cursors
+         * don't scroll with the content, but stay fixed)
+         */
+
+        int rect_count = 0;
+        const pixman_box32_t *boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
+
+        for (int i = 0; i < rect_count; i++) {
+            const pixman_box32_t *box = &boxes[i];
+
+            for (int r = box->y1; r < box->y2; r++) {
+                struct row *row = grid_row(term->grid, r);
+                xassert(row != NULL);
+
+                row->dirty = true;
+
+                for (int c = box->x1; c < box->x2; c++)
+                    row->cells[c].attrs.clean = false;
+            }
+        }
+    }
+
     render_overlay(term);
     render_ime_preedit(term, buf);
     render_scrollback_position(term);
