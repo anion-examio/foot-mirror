@@ -2324,7 +2324,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 } else {
                     if (term->multi_cursor.shapes == NULL) {
                         term->multi_cursor.shapes = xcalloc(
-                            term->cols * term->rows,
+                            term->grid->num_cols * term->grid->num_rows,
                             sizeof(enum multi_cursor_shape));
                     }
                 }
