@@ -2337,7 +2337,9 @@ csi_dispatch(struct terminal *term, uint8_t final)
                 for (int j = 0; j < rect_count; j++) {
                     const pixman_box32_t *box = &boxes[j];
                     for (int r = box->y1; r < box->y2; r++) {
-                        struct row *row = term->grid->rows[r];
+                        struct row *row = grid_row(term->grid, r);
+                        xassert(row != NULL);
+
                         row->dirty = true;
 
                         for (int c = box->x1; c < box->x2; c++) {

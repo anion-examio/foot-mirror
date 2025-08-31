@@ -534,7 +534,9 @@ cursor_refresh(struct terminal *term)
             const pixman_box32_t *box = &boxes[i];
 
             for (int r = box->y1; r < box->y2; r++) {
-                struct row *row = term->grid->rows[r];
+                struct row *row = grid_row(term->grid, r);
+                xassert(row != NULL);
+
                 row->dirty = true;
 
                 for (int c = box->x1; c < box->x2; c++)
