@@ -1021,6 +1021,7 @@ void term_theme_switch_to_2(struct terminal *term);
 void term_theme_toggle(struct terminal *term);
 
 void term_remove_all_multi_cursors(struct terminal *term);
+void term_damage_all_multi_cursors(struct terminal *term);
 
 static inline void term_reset_grapheme_state(struct terminal *term)
 {

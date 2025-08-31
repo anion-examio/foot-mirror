@@ -2568,6 +2568,29 @@ term_damage_cursor(struct terminal *term)
 }
 
 void
+term_damage_all_multi_cursors(struct terminal *term)
+{
+    if (likely(term->multi_cursor.shapes == NULL))
+        return;
+
+    int rect_count = 0;
+    const pixman_box32_t *boxes =
+        pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
+
+    for (const pixman_box32_t *box = boxes; box < &boxes[rect_count]; box++) {
+        for (int r = box->y1; r < box->y2; r++) {
+            struct row *row = grid_row(term->grid, r);
+            xassert(row != NULL);
+
+            row->dirty = true;
+
+            for (struct cell *c = &row->cells[box->x1]; c < &row->cells[box->x2]; c++)
+                c->attrs.clean = false;
+        }
+    }
+}
+
+void
 term_damage_margins(struct terminal *term)
 {
     term->render.margins = true;

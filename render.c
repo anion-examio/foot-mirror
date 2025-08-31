@@ -3417,28 +3417,6 @@ dirty_cursor(struct terminal *term)
     struct cell *cell = &row->cells[cursor->col];
     cell->attrs.clean = 0;
     row->dirty = true;
-
-
-    /* TODO: move to separate function */
-    if (likely(term->multi_cursor.shapes == NULL))
-        return;
-
-    int rect_count = 0;
-    const pixman_box32_t *boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
-
-    for (int i = 0; i < rect_count; i++) {
-        const pixman_box32_t *box = &boxes[i];
-
-        for (int r = box->y1; r < box->y2; r++) {
-            struct row *row = grid_row(term->grid, r);
-            xassert(row != NULL);
-
-            row->dirty = true;
-
-            for (int c = box->x1; c < box->x2; c++)
-                row->cells[c].attrs.clean = false;
-        }
-    }
 }
 
 static void
@@ -3464,6 +3442,7 @@ grid_render(struct terminal *term)
     /* Dirty old and current cursor cell, to ensure they're repainted */
     dirty_old_cursor(term);
     dirty_cursor(term);
+    term_damage_all_multi_cursors(term);
 
     if (term->render.last_buf == NULL ||
         term->render.last_buf->width != buf->width ||
@@ -3703,31 +3682,13 @@ grid_render(struct terminal *term)
 
     pixman_region32_fini(&damage);
 
-    if (unlikely(term->multi_cursor.shapes != NULL)) {
-        /*
-         * WIP: dirty all multi-cursors again, to ensure they're
-         * re-rendered the next frame. This is needed to properly
-         * _erase_ multi-cursors that have been scrolled (the cursors
-         * don't scroll with the content, but stay fixed)
-         */
-
-        int rect_count = 0;
-        const pixman_box32_t *boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
-
-        for (int i = 0; i < rect_count; i++) {
-            const pixman_box32_t *box = &boxes[i];
-
-            for (int r = box->y1; r < box->y2; r++) {
-                struct row *row = grid_row(term->grid, r);
-                xassert(row != NULL);
-
-                row->dirty = true;
-
-                for (int c = box->x1; c < box->x2; c++)
-                    row->cells[c].attrs.clean = false;
-            }
-        }
-    }
+    /*
+     * WIP: dirty all multi-cursors again, to ensure they're
+     * re-rendered the next frame. This is needed to properly _erase_
+     * multi-cursors that have been scrolled (the cursors don't scroll
+     * with the content, but stay fixed)
+     */
+    term_damage_all_multi_cursors(term);
 
     render_overlay(term);
     render_ime_preedit(term, buf);
