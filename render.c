@@ -3417,6 +3417,28 @@ dirty_cursor(struct terminal *term)
     struct cell *cell = &row->cells[cursor->col];
     cell->attrs.clean = 0;
     row->dirty = true;
+
+
+    /* TODO: move to separate function */
+    if (likely(term->multi_cursor.shapes == NULL))
+        return;
+
+    int rect_count = 0;
+    const pixman_box32_t *boxes = pixman_region32_rectangles(&term->multi_cursor.active, &rect_count);
+
+    for (int i = 0; i < rect_count; i++) {
+        const pixman_box32_t *box = &boxes[i];
+
+        for (int r = box->y1; r < box->y2; r++) {
+            struct row *row = grid_row(term->grid, r);
+            xassert(row != NULL);
+
+            row->dirty = true;
+
+            for (int c = box->x1; c < box->x2; c++)
+                row->cells[c].attrs.clean = false;
+        }
+    }
 }
 
 static void
