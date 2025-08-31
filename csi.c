@@ -2334,8 +2334,7 @@ csi_dispatch(struct terminal *term, uint8_t final)
                     pixman_region32_rectangles(&modified, &rect_count);
 
                 /* Set shape, and dirty affected cells */
-                for (int j = 0; j < rect_count; j++) {
-                    const pixman_box32_t *box = &boxes[j];
+                for (const pixman_box32_t *box = boxes; box < &boxes[rect_count]; box++) {
                     for (int r = box->y1; r < box->y2; r++) {
                         struct row *row = grid_row(term->grid, r);
                         xassert(row != NULL);
