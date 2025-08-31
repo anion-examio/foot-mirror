@@ -1348,8 +1348,14 @@ render_row(struct terminal *term, pixman_image_t *pix,
                         cursor_col == col, MULTI_CURSOR_SHAPE_NONE);
         }
     } else {
+        /* Translate view-relative row number to absolute numbers */
+        int multi_cursor_row = row_no;
+        multi_cursor_row += term->grid->view;
+        multi_cursor_row -= term->grid->offset;
+        multi_cursor_row &= term->grid->num_rows - 1;
+
         enum multi_cursor_shape *extra_cursors =
-            &term->multi_cursor.shapes[row_no * term->cols + term->cols - 1];
+            &term->multi_cursor.shapes[multi_cursor_row * term->cols + term->cols - 1];
 
         for (int col = term->cols - 1; col >= 0; col--, extra_cursors--) {
             render_cell(term, pix, damage, row, row_no, col,
