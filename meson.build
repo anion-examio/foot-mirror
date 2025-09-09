@@ -53,7 +53,7 @@ if utmp_backend == 'none'
 elif utmp_backend == 'libutempter'
   utmp_add = 'add'
   utmp_del = 'del'
-  utmp_del_have_argument = true
+  utmp_del_have_argument = false
   if utmp_default_helper_path == 'auto'
     utmp_default_helper_path = join_paths('/usr', get_option('libdir'), 'utempter', 'utempter')
   endif

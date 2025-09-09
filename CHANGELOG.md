@@ -93,7 +93,8 @@
 
 * Invalid configuration values overriding valid ones in surprising
   ways.
-
+* Bug where the libutempter utmp backend did not record logouts
+  correctly.
 
 ### Security
 ### Contributors
