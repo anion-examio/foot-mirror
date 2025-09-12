@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.24.0](#1-24-0)
 * [1.23.1](#1-23-1)
 * [1.23.0](#1-23-0)
 * [1.22.3](#1-22-3)
@@ -65,7 +65,8 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.24.0
+
 ### Added
 
 * The `uppercase-regex-insert` option controls whether an uppercase hint
@@ -87,8 +88,6 @@
 [2156]: https://codeberg.org/dnkl/foot/issues/2156
 
 
-### Deprecated
-### Removed
 ### Fixed
 
 * Invalid configuration values overriding valid ones in surprising
@@ -96,8 +95,10 @@
 * Bug where the libutempter utmp backend did not record logouts
   correctly.
 
-### Security
 ### Contributors
+
+* Ryan Roden-Corrent
+* Tobias Mock
 
 
 ## 1.23.1
