@@ -2031,6 +2031,32 @@ any of these options.
 	
 	Default: _512_. Maximum allowed: _2048_ (2GB).
 
+*min-stride-alignment*
+	This option controls the minimum stride alignment, in bytes, when
+	allocating SHM buffers.
+	
+	In some circumstances, a compositor can import foot's SHM buffers
+	directly to the GPU, without copying the buffer to GPU memory
+	(typically on integrated graphics). Different drivers have
+	different requirements for this, and one of those requirements is
+	typically the stride alignment. At the time of writing, AMD GPUs
+	require 256-byte alignment.
+	
+	Note that doing a direct import typically disables immediate
+	buffer release (if the compositor supports that), which means foot
+	has to double buffer. This adds a performance penalty in foot, but
+	the overall system performance should still be better.
+	
+	If you are not using integrated graphics, or if the compositor
+	does not support GPU direct imports, this option has close to zero
+	impact. You can save a small amount of memory by setting this to
+	0.
+	
+	Ultimately, it is up to the compositor to decide whether to do
+	immediate buffer releases, or try to optimize GPU imports.
+	
+	Default: _256_
+
 *sixel*
 	Boolean. When enabled, foot will process sixel images. Default:
 	_yes_
