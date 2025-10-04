@@ -4005,9 +4005,11 @@ term_print(struct terminal *term, char32_t wc, int width, bool insert_mode_disab
     cell->wc = term->vt.last_printed = wc;
     cell->attrs = term->vt.attrs;
 
-    if (term->vt.osc8.uri != NULL) {
-        grid_row_uri_range_put(
-            row, col, term->vt.osc8.uri, term->vt.osc8.id);
+    if (unlikely(term->vt.osc8.uri != NULL)) {
+        for (int i = 0; i < width && (col + i) < term->cols; i++) {
+            grid_row_uri_range_put(
+                row, col + i, term->vt.osc8.uri, term->vt.osc8.id);
+        }
 
         switch (term->conf->url.osc8_underline) {
         case OSC8_UNDERLINE_ALWAYS:

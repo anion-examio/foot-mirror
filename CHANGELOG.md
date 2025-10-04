@@ -72,6 +72,13 @@
 ### Deprecated
 ### Removed
 ### Fixed
+
+* URL labels misplaces when URL contains double-width characters
+  ([#2179][2179]).
+
+[2179]: https://codeberg.org/dnkl/foot/issues/2179
+
+
 ### Security
 ### Contributors
 
