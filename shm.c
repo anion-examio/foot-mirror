@@ -239,7 +239,6 @@ static const struct wl_buffer_listener buffer_listener = {
     .release = &buffer_release,
 };
 
-#if __SIZEOF_POINTER__ == 8
 static size_t
 page_size(void)
 {
@@ -256,7 +255,6 @@ page_size(void)
     xassert(size > 0);
     return size;
 }
-#endif
 
 static bool
 instantiate_offset(struct buffer_private *buf, off_t new_offset)
@@ -398,9 +396,11 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
         goto err;
     }
 
+    const size_t page_sz = page_size();
+
 #if __SIZEOF_POINTER__ == 8
     off_t offset = chain->scrollable && max_pool_size > 0
-        ? (max_pool_size / 4) & ~(page_size() - 1)
+        ? (max_pool_size / 4) & ~(page_sz - 1)
         : 0;
     off_t memfd_size = chain->scrollable && max_pool_size > 0
         ? max_pool_size
@@ -410,7 +410,8 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
     off_t memfd_size = total_size;
 #endif
 
-    xassert(chain->scrollable || (offset == 0 && memfd_size == total_size));
+    /* Page align */
+    memfd_size = (memfd_size + page_sz - 1) & ~(page_sz - 1);
 
     LOG_DBG("memfd-size: %lu, initial offset: %lu", memfd_size, offset);
 
@@ -441,6 +442,9 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
         offset = 0;
         memfd_size = total_size;
         chain->scrollable = false;
+
+        /* Page align */
+        memfd_size = (memfd_size + page_sz - 1) & ~(page_sz - 1);
 
         if (ftruncate(pool_fd, memfd_size) < 0) {
             LOG_ERRNO("failed to set size of SHM backing memory file");
