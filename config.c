@@ -2848,6 +2848,10 @@ parse_section_tweak(struct context *ctx)
 #endif
     }
 
+    else if (streq(key, "min-stride-alignment")) {
+        return value_to_uint32(ctx, 10, &conf->tweak.min_stride_alignment);
+    }
+
     else {
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
         return false;
@@ -3496,6 +3500,7 @@ config_load(struct config *conf, const char *conf_path,
             .font_monospace_warn = true,
             .sixel = true,
             .surface_bit_depth = SHM_BITS_AUTO,
+            .min_stride_alignment = 256,
         },
 
         .touch = {

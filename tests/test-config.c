@@ -1413,6 +1413,9 @@ test_section_tweak(void)
     test_float(&ctx, &parse_section_tweak, "bold-text-in-bright-amount",
                &conf.bold_in_bright.amount);
 
+    test_uint32(&ctx, &parse_section_tweak, "min-stride-alignment",
+                &conf.tweak.min_stride_alignment);
+
 #if 0 /* Must be equal to, or less than INT32_MAX */
     test_uint32(&ctx, &parse_section_tweak, "max-shm-pool-size-mb",
                 &conf.tweak.max_shm_pool_size);

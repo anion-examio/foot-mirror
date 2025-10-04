@@ -597,6 +597,7 @@ main(int argc, char *const *argv)
     }
 
     shm_set_max_pool_size(conf.tweak.max_shm_pool_size);
+    shm_set_min_stride_alignment(conf.tweak.min_stride_alignment);
 
     if ((fdm = fdm_init()) == NULL)
         goto out;

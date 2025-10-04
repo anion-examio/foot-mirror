@@ -42,7 +42,10 @@ struct buffer {
 };
 
 void shm_fini(void);
+
+/* TODO: combine into shm_init() */
 void shm_set_max_pool_size(off_t max_pool_size);
+void shm_set_min_stride_alignment(size_t min_stride_alignment);
 
 struct buffer_chain;
 struct buffer_chain *shm_chain_new(

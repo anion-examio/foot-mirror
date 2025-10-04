@@ -435,6 +435,7 @@ struct config {
         bool font_monospace_warn;
         bool sixel;
         enum shm_bit_depth surface_bit_depth;
+        uint32_t min_stride_alignment;
     } tweak;
 
     struct {

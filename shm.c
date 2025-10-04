@@ -13,7 +13,6 @@
 
 #include <pixman.h>
 
-#include <fcft/stride.h>
 #include <tllist.h>
 
 #define LOG_MODULE "shm"
@@ -21,6 +20,7 @@
 #include "log.h"
 #include "debug.h"
 #include "macros.h"
+#include "stride.h"
 #include "xmalloc.h"
 
 #if !defined(MAP_UNINITIALIZED)
@@ -60,6 +60,8 @@ static off_t max_pool_size = 512 * 1024 * 1024;
 
 static bool can_punch_hole = false;
 static bool can_punch_hole_initialized = false;
+
+static size_t min_stride_alignment = 0;
 
 struct buffer_pool {
     int fd;                /* memfd */
@@ -111,6 +113,12 @@ void
 shm_set_max_pool_size(off_t _max_pool_size)
 {
     max_pool_size = _max_pool_size;
+}
+
+void
+shm_set_min_stride_alignment(size_t _min_stride_alignment)
+{
+    min_stride_alignment = _min_stride_alignment;
 }
 
 static void
@@ -342,6 +350,13 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
                 ? chain->pixman_fmt_with_alpha
                 : chain->pixman_fmt_without_alpha,
             widths[i]);
+
+        if (min_stride_alignment > 0) {
+            const size_t m = min_stride_alignment;
+            stride[i] = (stride[i] + m - 1) / m * m;
+        }
+
+        xassert(min_stride_alignment == 0 || stride[i] % min_stride_alignment == 0);
         sizes[i] = stride[i] * heights[i];
         total_size += sizes[i];
     }
