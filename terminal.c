@@ -2648,10 +2648,7 @@ term_erase(struct terminal *term, int start_row, int start_col,
 
     if (start_row == end_row) {
         struct row *row = grid_row(term->grid, start_row);
-        if (unlikely(start_col == 0 && end_col == term->cols - 1))
-            erase_line(term, row);
-        else
-            erase_cell_range(term, row, start_col, end_col);
+        erase_cell_range(term, row, start_col, end_col);
         sixel_overwrite_by_row(term, start_row, start_col, end_col - start_col + 1);
         return;
     }
@@ -2667,10 +2664,7 @@ term_erase(struct terminal *term, int start_row, int start_col,
     sixel_overwrite_by_rectangle(
         term, start_row + 1, 0, end_row - start_row, term->cols);
 
-    if (unlikely(end_col == term->cols - 1))
-        erase_line(term, grid_row(term->grid, end_row));
-    else
-        erase_cell_range(term, grid_row(term->grid, end_row), 0, end_col);
+    erase_cell_range(term, grid_row(term->grid, end_row), 0, end_col);
     sixel_overwrite_by_row(term, end_row, 0, end_col + 1);
 }
 
