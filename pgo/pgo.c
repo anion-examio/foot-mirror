@@ -74,6 +74,8 @@ void render_refresh_icon(struct terminal *term) {}
 
 void render_overlay(struct terminal *term) {}
 
+void render_buffer_release_callback(struct buffer *buf, void *data) {}
+
 bool
 render_xcursor_is_valid(const struct seat *seat, const char *cursor)
 {
@@ -206,7 +208,8 @@ enum shm_bit_depth shm_chain_bit_depth(const struct buffer_chain *chain) { retur
 struct buffer_chain *
 shm_chain_new(
     struct wayland *wayl, bool scrollable, size_t pix_instances,
-    enum shm_bit_depth desired_bit_depth)
+    enum shm_bit_depth desired_bit_depth,
+    void (*release_cb)(struct buffer *buf, void *data), void *cb_data)
 {
     return NULL;
 }

@@ -68,6 +68,13 @@
 
 ## Unreleased
 ### Added
+
+* Performance increased and input latency decreased on compositors
+  that do not release SHM buffers immediately ([#2188][2188]).
+
+[2188]: https://codeberg.org/dnkl/foot/issues/2188
+
+
 ### Changed
 
 * SHM buffer sizes are now rounded up to nearest page size, and their

@@ -2093,6 +2093,41 @@ any of these options.
 	
 	Default: _auto_
 
+*pre-apply-damage*
+	Boolean. When enabled, foot will attempt to "pre-apply" the damage
+	from the last frame when foot is forced to double-buffer
+	(i.e. when the compositor does not release SHM buffers
+	immediately). All text after this assumes the compositor is not
+	releasing buffers immediately.
+	
+	When this option is disabled, each time foot needs to render a
+	frame, it has to first copy over areas that changed in the last
+	frame (i.e. all changes between the last two frames). This is
+	basically a *memcpy*(3), which can be slow if the changed area is
+	large. It is also done on the main thread, which means foot cannot
+	do anything else at the same time; no other rendering, no VT
+	parsing. After the changes have been brought over to the new
+	frame, foot proceeds with rendering the cells that has changed
+	between the last frame and the new frame.
+	
+	When this open is enabled, the changes between the last two frames
+	are brought over to what will become the next frame before foot
+	starts rendering the next frame. As soon as the compositor
+	releases the previous buffer (typically right after foot has
+	pushed a new frame), foot kicks off a thread that copies over the
+	changes to the newly released buffer. Since this is done in a
+	thread, foot can continue processing input at the same
+	time. Later, when it is time to render a new frame, the changes
+	have already been transferred, and foot can immediately start with
+	the actual rendering.
+	
+	Thus, having this option enabled improves both performance
+	(copying the last two frames' changes is threaded), and improves
+	input latency (rending the next frame no longer has to first bring
+	over the changes between the last two frames).
+	
+	Default: _yes_
+
 # SEE ALSO
 
 *foot*(1), *footclient*(1)

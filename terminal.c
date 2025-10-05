@@ -719,6 +719,9 @@ initialize_render_workers(struct terminal *term)
         goto err_sem_destroy;
     }
 
+    mtx_init(&term->render.workers.preapplied_damage.lock, mtx_plain);
+    cnd_init(&term->render.workers.preapplied_damage.cond);
+
     term->render.workers.threads = xcalloc(
         term->render.workers.count, sizeof(term->render.workers.threads[0]));
 
@@ -1356,13 +1359,13 @@ term_init(const struct config *conf, struct fdm *fdm, struct reaper *reaper,
         .render = {
             .chains = {
                 .grid = shm_chain_new(wayl, true, 1 + conf->render_worker_count,
-                                      desired_bit_depth),
-                .search = shm_chain_new(wayl, false, 1 ,desired_bit_depth),
-                .scrollback_indicator = shm_chain_new(wayl, false, 1, desired_bit_depth),
-                .render_timer = shm_chain_new(wayl, false, 1, desired_bit_depth),
-                .url = shm_chain_new(wayl, false, 1, desired_bit_depth),
-                .csd = shm_chain_new(wayl, false, 1, desired_bit_depth),
-                .overlay = shm_chain_new(wayl, false, 1, desired_bit_depth),
+                                      desired_bit_depth, &render_buffer_release_callback, term),
+                .search = shm_chain_new(wayl, false, 1 ,desired_bit_depth, NULL, NULL),
+                .scrollback_indicator = shm_chain_new(wayl, false, 1, desired_bit_depth, NULL, NULL),
+                .render_timer = shm_chain_new(wayl, false, 1, desired_bit_depth, NULL, NULL),
+                .url = shm_chain_new(wayl, false, 1, desired_bit_depth, NULL, NULL),
+                .csd = shm_chain_new(wayl, false, 1, desired_bit_depth, NULL, NULL),
+                .overlay = shm_chain_new(wayl, false, 1, desired_bit_depth, NULL, NULL),
             },
             .scrollback_lines = conf->scrollback.lines,
             .app_sync_updates.timer_fd = app_sync_updates_fd,
@@ -1893,6 +1896,8 @@ term_destroy(struct terminal *term)
         }
     }
     free(term->render.workers.threads);
+    mtx_destroy(&term->render.workers.preapplied_damage.lock);
+    cnd_destroy(&term->render.workers.preapplied_damage.cond);
     mtx_destroy(&term->render.workers.lock);
     sem_destroy(&term->render.workers.start);
     sem_destroy(&term->render.workers.done);

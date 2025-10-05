@@ -706,6 +706,14 @@ struct terminal {
             tll(int) queue;
             thrd_t *threads;
             struct buffer *buf;
+
+            struct {
+                mtx_t lock;
+                cnd_t cond;
+                struct buffer *buf;
+                struct timespec start;
+                struct timespec stop;
+            } preapplied_damage;
         } workers;
 
         /* Last rendered cursor position */
@@ -716,6 +724,8 @@ struct terminal {
         } last_cursor;
 
         struct buffer *last_buf;     /* Buffer we rendered to last time */
+        size_t frames_since_last_immediate_release;
+        bool preapply_last_frame_damage;
 
         enum overlay_style last_overlay_style;
         struct buffer *last_overlay_buf;

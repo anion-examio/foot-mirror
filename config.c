@@ -2848,9 +2848,11 @@ parse_section_tweak(struct context *ctx)
 #endif
     }
 
-    else if (streq(key, "min-stride-alignment")) {
+    else if (streq(key, "min-stride-alignment"))
         return value_to_uint32(ctx, 10, &conf->tweak.min_stride_alignment);
-    }
+
+    else if (streq(key, "pre-apply-damage"))
+        return value_to_bool(ctx, &conf->tweak.preapply_damage);
 
     else {
         LOG_CONTEXTUAL_ERR("not a valid option: %s", key);
@@ -3501,6 +3503,7 @@ config_load(struct config *conf, const char *conf_path,
             .sixel = true,
             .surface_bit_depth = SHM_BITS_AUTO,
             .min_stride_alignment = 256,
+            .preapply_damage = true,
         },
 
         .touch = {

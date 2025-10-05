@@ -2224,11 +2224,77 @@ render_worker_thread(void *_ctx)
 
             case -2:
                 return 0;
+
+            case -3: {
+                if (term->conf->tweak.render_timer != RENDER_TIMER_NONE)
+                    clock_gettime(CLOCK_MONOTONIC, &term->render.workers.preapplied_damage.start);
+
+                mtx_lock(&term->render.workers.preapplied_damage.lock);
+                buf = term->render.workers.preapplied_damage.buf;
+                xassert(buf != NULL);
+
+                if (likely(term->render.last_buf != NULL)) {
+                    mtx_unlock(&term->render.workers.preapplied_damage.lock);
+
+                    pixman_region32_t dmg;
+                    pixman_region32_init(&dmg);
+
+                    if (buf->age == 0)
+                        ; /* No need to do anything */
+                    else if (buf->age == 1)
+                        pixman_region32_copy(&dmg,
+                                             &term->render.last_buf->dirty[0]);
+                    else
+                        pixman_region32_init_rect(&dmg, 0, 0, buf->width,
+                                                  buf->height);
+
+                    pixman_image_set_clip_region32(buf->pix[my_id], &dmg);
+                    pixman_image_composite32(PIXMAN_OP_SRC,
+                                             term->render.last_buf->pix[my_id],
+                                             NULL, buf->pix[my_id], 0, 0, 0, 0, 0,
+                                             0, buf->width, buf->height);
+
+                    pixman_region32_fini(&dmg);
+
+                    buf->age = 0;
+                    shm_unref(term->render.last_buf);
+                    shm_addref(buf);
+                    term->render.last_buf = buf;
+
+                    mtx_lock(&term->render.workers.preapplied_damage.lock);
+                }
+
+                term->render.workers.preapplied_damage.buf = NULL;
+                cnd_signal(&term->render.workers.preapplied_damage.cond);
+                mtx_unlock(&term->render.workers.preapplied_damage.lock);
+
+                if (term->conf->tweak.render_timer != RENDER_TIMER_NONE)
+                    clock_gettime(CLOCK_MONOTONIC, &term->render.workers.preapplied_damage.stop);
+
+                frame_done = true;
+                break;
+            }
             }
         }
     };
 
     return -1;
+}
+
+static void
+wait_for_preapply_damage(struct terminal *term)
+{
+    if (!term->render.preapply_last_frame_damage)
+        return;
+    if (term->render.workers.preapplied_damage.buf == NULL)
+        return;
+
+    mtx_lock(&term->render.workers.preapplied_damage.lock);
+    while (term->render.workers.preapplied_damage.buf != NULL) {
+        cnd_wait(&term->render.workers.preapplied_damage.cond,
+                 &term->render.workers.preapplied_damage.lock);
+    }
+    mtx_unlock(&term->render.workers.preapplied_damage.lock);
 }
 
 struct csd_data
@@ -3113,14 +3179,6 @@ force_full_repaint(struct terminal *term, struct buffer *buf)
 static void
 reapply_old_damage(struct terminal *term, struct buffer *new, struct buffer *old)
 {
-    static int counter = 0;
-    static bool have_warned = false;
-    if (!have_warned && ++counter > 5) {
-        LOG_WARN("compositor is not releasing buffers immediately; "
-                 "expect lower rendering performance");
-        have_warned = true;
-    }
-
     if (new->age > 1) {
         memcpy(new->data, old->data, new->height * new->stride);
         return;
@@ -3251,7 +3309,18 @@ grid_render(struct terminal *term)
     if (term->shutdown.in_progress)
         return;
 
-    struct timespec start_time, start_double_buffering = {0}, stop_double_buffering = {0};
+    struct timespec start_time;
+    struct timespec start_wait_preapply = {0}, stop_wait_preapply = {0};
+    struct timespec start_double_buffering = {0}, stop_double_buffering = {0};
+
+    /* Might be a thread doing pre-applied damage */
+    if (unlikely(term->render.preapply_last_frame_damage &&
+                 term->render.workers.preapplied_damage.buf != NULL))
+    {
+        clock_gettime(CLOCK_MONOTONIC, &start_wait_preapply);
+        wait_for_preapply_damage(term);
+        clock_gettime(CLOCK_MONOTONIC, &stop_wait_preapply);
+    }
 
     if (term->conf->tweak.render_timer != RENDER_TIMER_NONE)
         clock_gettime(CLOCK_MONOTONIC, &start_time);
@@ -3269,6 +3338,8 @@ grid_render(struct terminal *term)
     dirty_old_cursor(term);
     dirty_cursor(term);
 
+    LOG_DBG("buffer age: %u (%p)", buf->age, (void *)buf);
+
     if (term->render.last_buf == NULL ||
         term->render.last_buf->width != buf->width ||
         term->render.last_buf->height != buf->height ||
@@ -3285,9 +3356,27 @@ grid_render(struct terminal *term)
         xassert(term->render.last_buf->width == buf->width);
         xassert(term->render.last_buf->height == buf->height);
 
+        if (++term->render.frames_since_last_immediate_release > 10) {
+            static bool have_warned = false;
+
+            if (!term->render.preapply_last_frame_damage &&
+                term->conf->tweak.preapply_damage &&
+                term->render.workers.count > 0)
+            {
+                LOG_INFO("enabling pre-applied frame damage");
+                term->render.preapply_last_frame_damage = true;
+            } else if (!have_warned) {
+                LOG_WARN("compositor is not releasing buffers immediately; "
+                         "expect lower rendering performance");
+                have_warned = true;
+            }
+        }
+
         clock_gettime(CLOCK_MONOTONIC, &start_double_buffering);
         reapply_old_damage(term, buf, term->render.last_buf);
         clock_gettime(CLOCK_MONOTONIC, &stop_double_buffering);
+    } else if (!term->render.preapply_last_frame_damage) {
+        term->render.frames_since_last_immediate_release = 0;
     }
 
     if (term->render.last_buf != NULL) {
@@ -3515,27 +3604,40 @@ grid_render(struct terminal *term)
         struct timespec end_time;
         clock_gettime(CLOCK_MONOTONIC, &end_time);
 
+        struct timespec wait_time;
+        timespec_sub(&stop_wait_preapply, &start_wait_preapply, &wait_time);
+
         struct timespec render_time;
         timespec_sub(&end_time, &start_time, &render_time);
 
         struct timespec double_buffering_time;
         timespec_sub(&stop_double_buffering, &start_double_buffering, &double_buffering_time);
 
+        struct timespec preapply_damage;
+        timespec_sub(&term->render.workers.preapplied_damage.stop,
+                     &term->render.workers.preapplied_damage.start,
+                     &preapply_damage);
+
         struct timespec total_render_time;
         timespec_add(&render_time, &double_buffering_time, &total_render_time);
+        timespec_add(&wait_time, &total_render_time, &total_render_time);
 
         switch (term->conf->tweak.render_timer) {
         case RENDER_TIMER_LOG:
         case RENDER_TIMER_BOTH:
             LOG_INFO(
                 "frame rendered in %lds %9ldns "
-                "(%lds %9ldns rendering, %lds %9ldns double buffering)",
+                "(%lds %9ldns wait, %lds %9ldns rendering, %lds %9ldns double buffering) not included: %lds %ldns pre-apply damage",
                 (long)total_render_time.tv_sec,
                 total_render_time.tv_nsec,
+                (long)wait_time.tv_sec,
+                wait_time.tv_nsec,
                 (long)render_time.tv_sec,
                 render_time.tv_nsec,
                 (long)double_buffering_time.tv_sec,
-                double_buffering_time.tv_nsec);
+                double_buffering_time.tv_nsec,
+                (long)preapply_damage.tv_sec,
+                preapply_damage.tv_nsec);
             break;
 
         case RENDER_TIMER_OSD:
@@ -4295,6 +4397,7 @@ delayed_reflow_of_normal_grid(struct terminal *term)
     term->interactive_resizing.old_hide_cursor = false;
 
     /* Invalidate render pointers */
+    wait_for_preapply_damage(term);
     shm_unref(term->render.last_buf);
     term->render.last_buf = NULL;
     term->render.last_cursor.row = NULL;
@@ -4869,6 +4972,7 @@ damage_view:
     tll_free(term->normal.scroll_damage);
     tll_free(term->alt.scroll_damage);
 
+    wait_for_preapply_damage(term);
     shm_unref(term->render.last_buf);
     term->render.last_buf = NULL;
     term_damage_view(term);
@@ -5266,4 +5370,78 @@ render_xcursor_set(struct seat *seat, struct terminal *term,
     seat->pointer.shape = shape;
     seat->pointer.xcursor_pending = true;
     return true;
+}
+
+void
+render_buffer_release_callback(struct buffer *buf, void *data)
+{
+    /*
+     * Called from shm.c when a buffer is released
+     *
+     * We use it to pre-apply last-frame's damage to it, when we're
+     * forced to double buffer (compositor doesn't release buffers
+     * immediately).
+     *
+     * The timeline is thus:
+     *   1. We render and push a new frame
+     *   2. Some (hopefully short) time after that, the compositor releases the previous buffer
+     *   3. We're called, and kick off the thread that copies the changes from (1) to the just freed buffer
+     *   4. Time passes....
+     *   5. The compositor calls our frame callback, signalling to us that it's time to start rendering the next frame
+     *   6. Hopefully, our thread is already done with copying the changes, otherwise we stall, waiting for it
+     *   7. We render the frame as if the compositor does immediate releases.
+     *
+     * What's the gain? Reduced latency, by applying the previous
+     * frame's damage as soon as possible, we shorten the time it
+     * takes to render the frame after the frame callback.
+     *
+     * This means the compositor can, in theory, push the frame
+     * callback closer to the vblank deadline, and thus reduce input
+     * latency. Not all compositors (most, in fact?) don't adapt like
+     * this, unfortunately. But some allows the user to manually
+     * configure the deadline.
+     */
+    struct terminal *term = data;
+
+    if (likely(buf->age != 1))
+        return;
+
+    if (likely(!term->render.preapply_last_frame_damage))
+        return;
+
+    if (term->render.last_buf == NULL)
+        return;
+
+    if (term->render.last_buf->age != 0)
+        return;
+
+    if (buf->width != term->render.last_buf->width)
+        return;
+
+    if (buf->height != term->render.last_buf->height)
+        return;
+
+    xassert(term->render.workers.count > 0);
+    xassert(term->render.last_buf != NULL);
+
+    xassert(term->render.last_buf->age == 0);
+    xassert(term->render.last_buf != buf);
+
+    mtx_lock(&term->render.workers.preapplied_damage.lock);
+    if (term->render.workers.preapplied_damage.buf != NULL) {
+        mtx_unlock(&term->render.workers.preapplied_damage.lock);
+        return;
+    }
+
+    xassert(term->render.workers.preapplied_damage.buf == NULL);
+    term->render.workers.preapplied_damage.buf = buf;
+    term->render.workers.preapplied_damage.start = (struct timespec){0};
+    term->render.workers.preapplied_damage.stop = (struct timespec){0};
+    mtx_unlock(&term->render.workers.preapplied_damage.lock);
+
+    mtx_lock(&term->render.workers.lock);
+    sem_post(&term->render.workers.start);
+    xassert(tll_length(term->render.workers.queue) == 0);
+    tll_push_back(term->render.workers.queue, -3);
+    mtx_unlock(&term->render.workers.lock);
 }

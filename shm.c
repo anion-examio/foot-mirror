@@ -87,6 +87,9 @@ struct buffer_private {
     bool with_alpha;
 
     bool scrollable;
+
+    void (*release_cb)(struct buffer *buf, void *data);
+    void *cb_data;
 };
 
 struct buffer_chain {
@@ -100,6 +103,9 @@ struct buffer_chain {
 
     pixman_format_code_t pixman_fmt_with_alpha;
     enum wl_shm_format shm_format_with_alpha;
+
+    void (*release_cb)(struct buffer *buf, void *data);
+    void *cb_data;
 };
 
 static tll(struct buffer_private *) deferred;
@@ -232,6 +238,10 @@ buffer_release(void *data, struct wl_buffer *wl_buffer)
         xassert(found);
         if (!found)
             LOG_WARN("deferred delete: buffer not on the 'deferred' list");
+    } else {
+        if (buffer->release_cb != NULL) {
+            buffer->release_cb(&buffer->public, buffer->cb_data);
+        }
     }
 }
 
@@ -516,6 +526,8 @@ get_new_buffers(struct buffer_chain *chain, size_t count,
             .offset = 0,
             .size = sizes[i],
             .scrollable = chain->scrollable,
+            .release_cb = chain->release_cb,
+            .cb_data = chain->cb_data,
         };
 
         if (!instantiate_offset(buf, offset)) {
@@ -623,7 +635,7 @@ shm_get_buffer(struct buffer_chain *chain, int width, int height, bool with_alph
                      * reuse. Pick the "youngest" one, and mark the
                      * other one for purging */
                     if (buf->public.age < cached->public.age) {
-                        shm_unref(&cached->public);
+                        //shm_unref(&cached->public);
                         cached = buf;
                     } else {
                         /*
@@ -634,8 +646,8 @@ shm_get_buffer(struct buffer_chain *chain, int width, int height, bool with_alph
                          * should be safe; "our" tll_foreach() already
                          * holds the next pointer.
                          */
-                        if (buffer_unref_no_remove_from_chain(buf))
-                            tll_remove(chain->bufs, it);
+                        //if (buffer_unref_no_remove_from_chain(buf))
+                        //    tll_remove(chain->bufs, it);
                     }
                 }
             }
@@ -994,7 +1006,8 @@ shm_unref(struct buffer *_buf)
 
 struct buffer_chain *
 shm_chain_new(struct wayland *wayl, bool scrollable, size_t pix_instances,
-              enum shm_bit_depth desired_bit_depth)
+              enum shm_bit_depth desired_bit_depth,
+              void (*release_cb)(struct buffer *buf, void *data), void *cb_data)
 {
     pixman_format_code_t pixman_fmt_without_alpha = PIXMAN_x8r8g8b8;
     enum wl_shm_format shm_fmt_without_alpha = WL_SHM_FORMAT_XRGB8888;
@@ -1090,6 +1103,9 @@ shm_chain_new(struct wayland *wayl, bool scrollable, size_t pix_instances,
 
         .pixman_fmt_with_alpha = pixman_fmt_with_alpha,
         .shm_format_with_alpha = shm_fmt_with_alpha,
+
+        .release_cb = release_cb,
+        .cb_data = cb_data,
     };
     return chain;
 }
