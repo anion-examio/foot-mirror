@@ -82,6 +82,8 @@
   configurable by setting `tweak.min-stride-alignment`). This allows
   compositor to directly import foot's SHM buffers to the GPU, with
   e.g. integrated graphics ([#2182][2182]).
+* Jump label colors in the modus-operandi theme, for improved
+  readability.
 
 [2182]: https://codeberg.org/dnkl/foot/issues/2182
 
