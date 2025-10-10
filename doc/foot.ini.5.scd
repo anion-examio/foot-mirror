@@ -1031,7 +1031,8 @@ dark theme (since the default theme is dark).
 	a color value, and a "dim" attribute.
 	
 	By default, foot implements this by blending the current color
-	with black. This is a generic approach that applies to both
+	with black or white, depending on what the *dim-blend-towards*
+	option is set to . This is a generic approach that applies to both
 	colors from the 256-color palette, as well as 24-bit RGB colors.
 	
 	You can change this behavior by setting the *dimN* options. When
@@ -1086,6 +1087,14 @@ dark theme (since the default theme is dark).
 	
 	Default: _default_
 
+*dim-blend-towards*
+	Which color to blend towards when "auto" dimming a color (see
+	*dim0*..*dim7* above). One of *black* or *white*. Blending towards
+	black makes the text darker, while blending towards white makes it
+	whiter (but still dimmer than normal text).
+	
+	Default: _black_ (*colors*), _white_ (*colors2*)
+
 *selection-foreground*, *selection-background*
 	Foreground (text) and background color to use in selected
 	text. Default: _inverse foreground/background_.
@@ -1124,7 +1133,8 @@ dark theme (since the default theme is dark).
 # SECTION: colors2
 
 This section defines an alternative color theme. It has the exact same
-keys as the *colors* section. The default values are the same.
+keys as the *colors* section. The default values are the same, except
+for *dim-blend-towards*, which defaults to *white* instead.
 
 Note that values are not inherited. That is, if you set a value in
 *colors*, but not in *colors2*, the value from *colors* is not

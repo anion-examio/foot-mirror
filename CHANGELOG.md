@@ -71,8 +71,12 @@
 
 * Performance increased and input latency decreased on compositors
   that do not release SHM buffers immediately ([#2188][2188]).
+* `colors{,2}.dim-blend-towards=black|white` option, allowing you to
+  select towards which color to blend when dimming text. Defaults to
+  `black` in `[colors]`, and `white` in `[colors2]` ([#2187][2187]).
 
 [2188]: https://codeberg.org/dnkl/foot/issues/2188
+[2187]: https://codeberg.org/dnkl/foot/issues/2187
 
 
 ### Changed

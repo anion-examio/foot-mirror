@@ -146,6 +146,11 @@ struct color_theme {
     uint32_t sixel[16];
 
     enum {
+        DIM_BLEND_TOWARDS_BLACK,
+        DIM_BLEND_TOWARDS_WHITE,
+    } dim_blend_towards;
+
+    enum {
         ALPHA_MODE_DEFAULT,
         ALPHA_MODE_MATCHING,
         ALPHA_MODE_ALL

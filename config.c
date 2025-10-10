@@ -1519,7 +1519,7 @@ parse_color_theme(struct context *ctx, struct color_theme *theme)
         return true;
     }
 
-    else if (strcmp(key, "alpha-mode") == 0) {
+    else if (streq(key, "alpha-mode")) {
         _Static_assert(sizeof(theme->alpha_mode) == sizeof(int),
         "enum is not 32-bit");
 
@@ -1527,6 +1527,16 @@ parse_color_theme(struct context *ctx, struct color_theme *theme)
             ctx,
             (const char *[]){"default", "matching", "all", NULL},
             (int *)&theme->alpha_mode);
+    }
+
+    else if (streq(key, "dim-blend-towards")) {
+        _Static_assert(sizeof(theme->dim_blend_towards) == sizeof(int),
+                       "enum is not 32-bit");
+
+        return value_to_enum(
+            ctx,
+            (const char *[]){"black", "white", NULL},
+            (int *)&theme->dim_blend_towards);
     }
 
     else {
@@ -3428,6 +3438,7 @@ config_load(struct config *conf, const char *conf_path,
             .flash_alpha = 0x7fff,
             .alpha = 0xffff,
             .alpha_mode = ALPHA_MODE_DEFAULT,
+            .dim_blend_towards = DIM_BLEND_TOWARDS_BLACK,
             .selection_fg = 0x80000000,  /* Use default bg */
             .selection_bg = 0x80000000,  /* Use default fg */
             .cursor = {
@@ -3523,6 +3534,8 @@ config_load(struct config *conf, const char *conf_path,
     memcpy(conf->colors.table, default_color_table, sizeof(default_color_table));
     memcpy(conf->colors.sixel, default_sixel_colors, sizeof(default_sixel_colors));
     memcpy(&conf->colors2, &conf->colors, sizeof(conf->colors));
+    conf->colors2.dim_blend_towards = DIM_BLEND_TOWARDS_WHITE;
+
     parse_modifiers(XKB_MOD_NAME_SHIFT, 5, &conf->mouse.selection_override_modifiers);
 
     tokenize_cmdline(

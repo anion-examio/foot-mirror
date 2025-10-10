@@ -753,6 +753,11 @@ test_section_colors(void)
               (int []){ALPHA_MODE_DEFAULT, ALPHA_MODE_MATCHING, ALPHA_MODE_ALL},
               (int *)&conf.colors.alpha_mode);
 
+    test_enum(&ctx, &parse_section_colors, "dim-blend-towards", 2,
+              (const char *[]){"black", "white"},
+              (int []){DIM_BLEND_TOWARDS_BLACK, DIM_BLEND_TOWARDS_WHITE},
+              (int *)&conf.colors.dim_blend_towards);
+
     for (size_t i = 0; i < 255; i++) {
         char key_name[4];
         sprintf(key_name, "%zu", i);

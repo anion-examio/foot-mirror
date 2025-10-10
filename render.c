@@ -312,7 +312,14 @@ color_dim(const struct terminal *term, uint32_t color)
         }
     }
 
-    return color_blend_towards(color, 0x00000000, conf->dim.amount);
+    const struct color_theme *theme = term->colors.active_theme == COLOR_THEME1
+        ? &conf->colors
+        : &conf->colors2;
+
+    return color_blend_towards(
+        color,
+        theme->dim_blend_towards == DIM_BLEND_TOWARDS_BLACK ? 0x00000000 : 0x00ffffff,
+        conf->dim.amount);
 }
 
 static inline uint32_t
