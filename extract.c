@@ -256,8 +256,8 @@ extract_one(const struct terminal *term, const struct row *row,
                 }
             }
 
-            xassert(next_tab_stop >= col);
-            ctx->tab_spaces_left = next_tab_stop - col;
+            if (next_tab_stop > col)
+                ctx->tab_spaces_left = next_tab_stop - col - 1;
         }
     }
 

@@ -98,8 +98,11 @@
 
 * URL labels misplaces when URL contains double-width characters
   ([#2179][2179]).
+* One space too much consumed when copying (or pipe:ing) contents with
+  tabs ([#2194][2194])
 
 [2179]: https://codeberg.org/dnkl/foot/issues/2179
+[2194]: https://codeberg.org/dnkl/foot/issues/2194
 
 
 ### Security
