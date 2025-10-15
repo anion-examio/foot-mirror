@@ -100,6 +100,10 @@
   ([#2179][2179]).
 * One space too much consumed when copying (or pipe:ing) contents with
   tabs ([#2194][2194])
+* Ensure we render a new frame when changing fullscreen state. Before,
+  this was automatically done if the window was also resized. But, it
+  is possible for a compositor to change an application's fullscreen
+  state without resizing the window.
 
 [2179]: https://codeberg.org/dnkl/foot/issues/2179
 [2194]: https://codeberg.org/dnkl/foot/issues/2194

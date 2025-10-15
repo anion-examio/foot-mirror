@@ -1097,10 +1097,6 @@ xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
     else if (csd_was_enabled && !enable_csd)
         csd_destroy(win);
 
-    /* Update opaque region if fullscreen state changed */
-    if (was_fullscreen != win->is_fullscreen)
-        wayl_win_alpha_changed(win);
-
     if (enable_csd && new_width > 0 && new_height > 0) {
         if (wayl_win_csd_titlebar_visible(win))
             new_height -= win->term->conf->csd.title_height;
@@ -1139,11 +1135,26 @@ xdg_surface_configure(void *data, struct xdg_surface *xdg_surface,
     else
         term_visual_focus_out(term);
 
-    if (!resized && !term->render.pending.grid) {
+    /*
+     * Update opaque region if fullscreen state changed, also need to
+     * render, since we use different buffer types with and without
+     * alpha
+     */
+    if (was_fullscreen != win->is_fullscreen) {
+        wayl_win_alpha_changed(win);
+        render_refresh(term);
+    }
+
+    const bool will_render_soon = resized ||
+                                  term->render.refresh.grid ||
+                                  term->render.pending.grid;
+
+    if (!will_render_soon) {
         /*
-         * If we didn't resize, we won't be committing a new surface
-         * anytime soon. Some compositors require a commit in
-         * combination with an ack - make them happy.
+         * If we didn't resize, and aren't refreshing for other
+         * reasons, we won't be committing a new surface anytime
+         * soon. Some compositors require a commit in combination with
+         * an ack - make them happy.
          */
         wl_surface_commit(win->surface.surf);
     }
