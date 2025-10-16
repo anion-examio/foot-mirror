@@ -1,6 +1,6 @@
 # Changelog
 
-* [Unreleased](#unreleased)
+* [1.25.0](#1-25-0)
 * [1.24.0](#1-24-0)
 * [1.23.1](#1-23-1)
 * [1.23.0](#1-23-0)
@@ -66,7 +66,8 @@
 * [1.2.0](#1-2-0)
 
 
-## Unreleased
+## 1.25.0
+
 ### Added
 
 * Performance increased and input latency decreased on compositors
@@ -92,8 +93,6 @@
 [2182]: https://codeberg.org/dnkl/foot/issues/2182
 
 
-### Deprecated
-### Removed
 ### Fixed
 
 * URL labels misplaces when URL contains double-width characters
@@ -109,8 +108,10 @@
 [2194]: https://codeberg.org/dnkl/foot/issues/2194
 
 
-### Security
 ### Contributors
+
+* Charalampos Mitrodimas
+* Matthias Heyman
 
 
 ## 1.24.0
