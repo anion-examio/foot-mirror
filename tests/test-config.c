@@ -765,6 +765,8 @@ test_section_colors(void)
                    &conf.colors.table[i]);
     }
 
+    test_boolean(&ctx, &parse_section_colors, "blur", &conf.colors.blur);
+
     test_invalid_key(&ctx, &parse_section_colors, "256");
 
     /* TODO: alpha (float in range 0-1, converted to uint16_t) */

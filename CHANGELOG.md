@@ -69,6 +69,15 @@
 
 ## Unreleased
 ### Added
+
+* Preliminary (untested) support for background blur via the new
+  `ext-background-effect-v1` protocol. Enable by setting
+  `colors.blur=yes` (and `colors2.blur=yes`). Foot needs to have been
+  **built** against `wayland-protocols >= 1.45`, and the compositor
+  **must** implement the `ext-background-effect-v1` protocol, **and**
+  the `blur` effect.
+
+
 ### Changed
 ### Deprecated
 ### Removed

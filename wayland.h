@@ -23,6 +23,10 @@
 #include <xdg-system-bell-v1.h>
 #include <xdg-toplevel-icon-v1.h>
 
+#if defined(HAVE_EXT_BACKGROUND_EFFECT)
+ #include <ext-background-effect-v1.h>
+#endif
+
 #include <fcft/fcft.h>
 #include <tllist.h>
 
@@ -58,6 +62,10 @@ struct wayl_surface {
     struct wl_surface *surf;
     struct wp_viewport *viewport;
     struct wp_color_management_surface_v1 *color_management;
+
+#if defined(HAVE_EXT_BACKGROUND_EFFECT)
+    struct ext_background_effect_surface_v1 *background_effect;
+#endif
 };
 
 struct wayl_sub_surface {
@@ -480,6 +488,11 @@ struct wayland {
     bool presentation_timings;
     struct wp_presentation *presentation;
     uint32_t presentation_clock_id;
+
+#if defined(HAVE_EXT_BACKGROUND_EFFECT)
+    struct ext_background_effect_manager_v1 *background_effect_manager;
+    bool have_background_blur;
+#endif
 
 #if defined(FOOT_IME_ENABLED) && FOOT_IME_ENABLED
     struct zwp_text_input_manager_v3 *text_input_manager;

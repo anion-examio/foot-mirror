@@ -4,6 +4,12 @@
 const char version_and_features[] =
     "version: " FOOT_VERSION
 
+#if defined(HAVE_EXT_BACKGROUND_EFFECT)
+    " +blur"
+#else
+    " -blur"
+#endif
+
 #if defined(FOOT_PGO_ENABLED) && FOOT_PGO_ENABLED
     " +pgo"
 #else

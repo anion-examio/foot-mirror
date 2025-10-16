@@ -182,7 +182,12 @@ wl_proto_xml = [
   wayland_protocols_datadir / 'staging/xdg-toplevel-icon/xdg-toplevel-icon-v1.xml',
   wayland_protocols_datadir / 'staging/xdg-system-bell/xdg-system-bell-v1.xml',
   wayland_protocols_datadir / 'staging/color-management/color-management-v1.xml',
-  ]
+]
+
+if (wayland_protocols.version().version_compare('>=1.45'))
+  wl_proto_xml += [wayland_protocols_datadir / 'staging/ext-background-effect/ext-background-effect-v1.xml']
+  add_project_arguments('-DHAVE_EXT_BACKGROUND_EFFECT=1', language: 'c')
+endif
 
 foreach prot : wl_proto_xml
   wl_proto_headers += custom_target(
