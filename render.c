@@ -3372,7 +3372,7 @@ grid_render(struct terminal *term)
             {
                 LOG_INFO("enabling pre-applied frame damage");
                 term->render.preapply_last_frame_damage = true;
-            } else if (!have_warned) {
+            } else if (!have_warned && !term->render.preapply_last_frame_damage) {
                 LOG_WARN("compositor is not releasing buffers immediately; "
                          "expect lower rendering performance");
                 have_warned = true;
