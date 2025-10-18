@@ -576,23 +576,20 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
     /* Verify keymap is in a format we understand */
     switch ((enum wl_keyboard_keymap_format)format) {
     case WL_KEYBOARD_KEYMAP_FORMAT_NO_KEYMAP:
-        close(fd);
-        return;
+        goto err;
 
     case WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1:
         break;
 
     default:
         LOG_WARN("unrecognized keymap format: %u", format);
-        close(fd);
-        return;
+        goto err;
     }
 
     char *map_str = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
     if (map_str == MAP_FAILED) {
         LOG_ERRNO("failed to mmap keyboard keymap");
-        close(fd);
-        return;
+        goto err;
     }
 
     while (map_str[size - 1] == '\0')
@@ -604,6 +601,8 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
             XKB_KEYMAP_COMPILE_NO_FLAGS);
 
     }
+
+    munmap(map_str, size);
 
     if (seat->kbd.xkb_keymap != NULL) {
         seat->kbd.xkb_state = xkb_state_new(seat->kbd.xkb_keymap);
@@ -685,10 +684,10 @@ keyboard_keymap(void *data, struct wl_keyboard *wl_keyboard,
         seat->kbd.key_arrow_down = xkb_keymap_key_by_name(seat->kbd.xkb_keymap, "DOWN");
     }
 
-    munmap(map_str, size);
-    close(fd);
-
     key_binding_load_keymap(wayl->key_binding_manager, seat);
+
+err:
+    close(fd);
 }
 
 static void
